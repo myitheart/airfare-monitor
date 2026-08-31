@@ -29,6 +29,9 @@ MAIL = MailSettings(False, "smtp.example.com", 465, "ssl", "U", "P", "S", "R", T
 
 
 class ReportTests(unittest.TestCase):
+    def test_subject_uses_enabled_leg_count(self):
+        self.assertIn("1程更新", build_subject(report(), MAIL))
+
     def test_subject_marks_partial(self):
         self.assertIn("[部分失败]", build_subject(report(RunStatus.PARTIAL), MAIL))
 

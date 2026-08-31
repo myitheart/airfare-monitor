@@ -12,7 +12,7 @@ from .service import MonitorService
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="个人四程航价监控")
+    parser = argparse.ArgumentParser(description="个人多航程航价监控")
     parser.add_argument("--routes", default="config/routes.yaml")
     parser.add_argument("--settings", default="config/settings.yaml")
     parser.add_argument("--log-level", default="INFO", choices=("DEBUG", "INFO", "WARNING", "ERROR"))
@@ -20,7 +20,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser("validate", help="仅校验配置，不启动浏览器")
     once = subparsers.add_parser("run-once", help="采集一次并生成 Excel")
     once.add_argument("--send-mail", action="store_true", help="按配置发送真实邮件")
-    subparsers.add_parser("daemon", help="每 30 分钟运行并按配置发送邮件")
+    subparsers.add_parser("daemon", help="按配置间隔运行并发送邮件")
     return parser
 
 

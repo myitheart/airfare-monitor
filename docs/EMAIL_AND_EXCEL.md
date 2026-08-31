@@ -5,19 +5,19 @@
 Normal update:
 
 ```text
-[航价监控] 四程更新 | 2026-10-01 08:30
+[航价监控] N程更新 | 2026-10-01 08:30
 ```
 
 One or more confirmed threshold hits:
 
 ```text
-[低价命中][2/4程] PVG-KUL ¥1,420 ≤ ¥1,500 | 2026-10-01 08:30
+[低价命中][命中数/N程] PVG-KUL ¥1,420 ≤ ¥1,500 | 2026-10-01 08:30
 ```
 
 Partial collection:
 
 ```text
-[航价监控][部分失败] 四程更新 | 2026-10-01 08:30
+[航价监控][部分失败] N程更新 | 2026-10-01 08:30
 ```
 
 Priority is: confirmed threshold hit, partial/failed marker, normal update.
@@ -49,7 +49,9 @@ One row per leg:
 采集状态 | 采集时间
 ```
 
-### `航程1` to `航程4`
+### `航程1` to `航程N`
+
+One sheet is generated dynamically for every enabled leg.
 
 Up to 10 eligible direct flights per sheet:
 
@@ -68,4 +70,3 @@ One row per leg and collection time with minimum total price, allowing a simple 
 ```text
 airfare-monitor_YYYYMMDD_HHMM.xlsx
 ```
-

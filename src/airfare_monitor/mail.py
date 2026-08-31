@@ -41,8 +41,7 @@ def build_subject(report: RunReport, settings: MailSettings) -> str:
             f"{settings.threshold_subject_prefix}{partial_marker}[{len(hits)}/{total}程] "
             f"{comparison}{more} | {stamp}"
         )
-    route_count = "四程" if total == 4 else f"{total}程"
-    return f"{settings.normal_subject_prefix}{partial_marker} {route_count}更新 | {stamp}"
+    return f"{settings.normal_subject_prefix}{partial_marker} {total}程更新 | {stamp}"
 
 
 def _leg_plain(result: LegResult, confirmed: bool) -> list[str]:

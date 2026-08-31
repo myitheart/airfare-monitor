@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "airfare-monitor"
 version = "0.1.0"
-description = "Personal four-leg airfare monitoring and email reporting"
+description = "Personal multi-leg airfare monitoring and email reporting"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
