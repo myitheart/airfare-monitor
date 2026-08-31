@@ -1,0 +1,70 @@
+# Copy to routes.yaml and replace all placeholders.
+# Airport fields use IATA three-letter airport codes, not airline codes.
+legs:
+  - id: leg-1
+    enabled: true
+    origin_airport_iata: AAA
+    origin_name_zh: 出发地名称
+    destination_airport_iata: BBB
+    destination_name_zh: 到达地名称
+    departure_date: "2026-10-01"
+    etd_window:
+      start: "00:00"
+      end: "23:59"
+    direct_only: true
+    expected_total_price_cny: 1500
+    top_n: 10
+    adult_count: 1
+    child_count: 0
+    cabin_class: economy
+
+  - id: leg-2
+    enabled: true
+    origin_airport_iata: BBB
+    origin_name_zh: 出发地名称
+    destination_airport_iata: CCC
+    destination_name_zh: 到达地名称
+    departure_date: "2026-10-05"
+    etd_window:
+      start: "00:00"
+      end: "23:59"
+    direct_only: true
+    expected_total_price_cny: 1500
+    top_n: 10
+    adult_count: 1
+    child_count: 0
+    cabin_class: economy
+
+  - id: leg-3
+    enabled: true
+    origin_airport_iata: CCC
+    origin_name_zh: 出发地名称
+    destination_airport_iata: DDD
+    destination_name_zh: 到达地名称
+    departure_date: "2026-10-10"
+    etd_window:
+      start: "00:00"
+      end: "23:59"
+    direct_only: true
+    expected_total_price_cny: 1500
+    top_n: 10
+    adult_count: 1
+    child_count: 0
+    cabin_class: economy
+
+  - id: leg-4
+    enabled: true
+    origin_airport_iata: DDD
+    origin_name_zh: 出发地名称
+    destination_airport_iata: AAA
+    destination_name_zh: 到达地名称
+    departure_date: "2026-10-15"
+    etd_window:
+      start: "00:00"
+      end: "23:59"
+    direct_only: true
+    expected_total_price_cny: 1500
+    top_n: 10
+    adult_count: 1
+    child_count: 0
+    cabin_class: economy

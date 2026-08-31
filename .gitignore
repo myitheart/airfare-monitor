@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+
+# Secrets and local configuration
+.env
+config/routes.yaml
+config/settings.yaml
+
+# Runtime browser state and data
+data/*
+!data/.gitkeep
+logs/*
+!logs/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

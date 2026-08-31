@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "airfare-monitor"
+version = "0.1.0"
+description = "Personal four-leg airfare monitoring and email reporting"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "DrissionPage>=4,<5",
+  "openpyxl>=3.1,<4",
+  "PyYAML>=6,<7",
+]
+
+[project.scripts]
+airfare-monitor = "airfare_monitor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
