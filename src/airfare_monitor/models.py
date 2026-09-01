@@ -48,6 +48,19 @@ class PreferredSchedule:
     origin_airport_iata: str | None = None
     destination_airport_iata: str | None = None
 
+    def history_key(self, departure_date: date) -> str:
+        """Return a stable identity that resets when the planned trip changes."""
+        return "|".join(
+            (
+                departure_date.isoformat(),
+                self.origin_airport_iata or "*",
+                self.destination_airport_iata or "*",
+                self.departure_time.strftime("%H:%M"),
+                self.arrival_time.strftime("%H:%M"),
+                str(self.arrival_day_offset),
+            )
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class LegConfig:
@@ -135,6 +148,14 @@ class FlightSnapshot:
         return "/".join(self.carrier_codes)
 
 
+@dataclass(frozen=True, slots=True)
+class PreferredPriceReference:
+    first_total_price_cny: Decimal | None = None
+    first_captured_at: datetime | None = None
+    previous_total_price_cny: Decimal | None = None
+    previous_captured_at: datetime | None = None
+
+
 @dataclass(slots=True)
 class LegResult:
     leg: LegConfig
@@ -142,6 +163,7 @@ class LegResult:
     captured_at: datetime
     flights: list[FlightSnapshot] = field(default_factory=list)
     preferred_matches: list[FlightSnapshot | None] = field(default_factory=list)
+    preferred_price_references: list[PreferredPriceReference] = field(default_factory=list)
     completed_response: bool = False
     observed_count: int = 0
     eligible_count: int = 0

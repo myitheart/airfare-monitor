@@ -11,7 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from .models import LegResult, RunReport
+from .models import LegResult, PreferredPriceReference, RunReport
 
 
 SCHEMA = """
@@ -79,6 +79,27 @@ CREATE TABLE IF NOT EXISTS flight_snapshots (
     FOREIGN KEY (run_id, leg_id) REFERENCES leg_results(run_id, leg_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS preferred_schedule_prices (
+    run_id TEXT NOT NULL,
+    leg_id TEXT NOT NULL,
+    preference_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    target_departure_time TEXT NOT NULL,
+    target_arrival_time TEXT NOT NULL,
+    arrival_day_offset INTEGER NOT NULL,
+    matched_flight_signature TEXT,
+    matched_flight_codes_json TEXT,
+    actual_etd_local TEXT,
+    actual_eta_local TEXT,
+    total_price_cny TEXT,
+    captured_at TEXT NOT NULL,
+    PRIMARY KEY (run_id, leg_id, preference_key),
+    FOREIGN KEY (run_id, leg_id) REFERENCES leg_results(run_id, leg_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_preferred_schedule_prices_history
+ON preferred_schedule_prices (leg_id, preference_key, captured_at);
+
 CREATE TABLE IF NOT EXISTS raw_responses (
     run_id TEXT NOT NULL,
     leg_id TEXT NOT NULL,
@@ -130,6 +151,28 @@ class SQLiteStore:
         with closing(self.connect()) as connection:
             row = connection.execute(sql, params).fetchone()
         return Decimal(row[0]) if row else None
+
+    def preferred_price_reference(
+        self, leg_id: str, preference_key: str, *, before: datetime | None = None
+    ) -> PreferredPriceReference:
+        sql = """
+            SELECT total_price_cny, captured_at
+            FROM preferred_schedule_prices
+            WHERE leg_id = ? AND preference_key = ? AND total_price_cny IS NOT NULL
+        """
+        params: list[Any] = [leg_id, preference_key]
+        if before is not None:
+            sql += " AND captured_at < ?"
+            params.append(_iso(before))
+        with closing(self.connect()) as connection:
+            first = connection.execute(sql + " ORDER BY captured_at ASC, run_id ASC LIMIT 1", params).fetchone()
+            previous = connection.execute(sql + " ORDER BY captured_at DESC, run_id DESC LIMIT 1", params).fetchone()
+        return PreferredPriceReference(
+            first_total_price_cny=Decimal(first[0]) if first else None,
+            first_captured_at=datetime.fromisoformat(first[1]) if first else None,
+            previous_total_price_cny=Decimal(previous[0]) if previous else None,
+            previous_captured_at=datetime.fromisoformat(previous[1]) if previous else None,
+        )
 
     def save_report(self, report: RunReport) -> None:
         confirmed_ids = report.threshold_confirmed_leg_ids
@@ -219,6 +262,31 @@ class SQLiteStore:
                     flight.free_baggage_weight,
                     flight.source_domain,
                     _iso(flight.captured_at),
+                ),
+            )
+        for index, preferred in enumerate(leg.preferred_schedules):
+            flight = result.preferred_matches[index] if index < len(result.preferred_matches) else None
+            connection.execute(
+                """INSERT INTO preferred_schedule_prices (
+                    run_id, leg_id, preference_key, label,
+                    target_departure_time, target_arrival_time, arrival_day_offset,
+                    matched_flight_signature, matched_flight_codes_json,
+                    actual_etd_local, actual_eta_local, total_price_cny, captured_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    run_id,
+                    leg.id,
+                    preferred.history_key(leg.departure_date),
+                    preferred.label,
+                    preferred.departure_time.strftime("%H:%M"),
+                    preferred.arrival_time.strftime("%H:%M"),
+                    preferred.arrival_day_offset,
+                    flight.flight_signature if flight else None,
+                    json.dumps(flight.flight_codes, ensure_ascii=False) if flight else None,
+                    _iso(flight.etd_local) if flight else None,
+                    _iso(flight.eta_local) if flight else None,
+                    _decimal_text(flight.total_price_cny) if flight else None,
+                    _iso(result.captured_at),
                 ),
             )
         if result.raw_response is not None:

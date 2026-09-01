@@ -40,6 +40,8 @@ The body should be readable on a phone and contain:
 
 Preferred schedules may define independent departure and arrival tolerance minutes. Matching first requires the configured actual airports, then chooses the itinerary with the smallest combined time deviation inside both tolerance limits; total price is only a tie-breaker.
 
+Preferred schedules are the primary section in each route card. For every configured schedule the email shows current price, first observed price and timestamp, change from first, previous observed price and timestamp, and change from previous. The cheapest three flights are presented afterwards as fallback options. A missing match remains visible and does not replace the first or previous successful price reference.
+
 ## Workbook layout
 
 ### `本次汇总`

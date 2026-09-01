@@ -21,6 +21,8 @@
 
 Each preferred schedule contains a display `label`, target departure and arrival times, an `arrival_day_offset`, independently configurable departure/arrival tolerance minutes, and optional actual origin/destination airport IATA codes. Preferred matches are selected from the complete eligible response before the cheapest `top_n` slice is applied.
 
+Preferred prices are persisted independently by leg, departure date, target times and actual airports. The first successful match is retained as the baseline; the most recent successful match is used for the previous-price comparison. Tolerance-only changes keep the same history identity.
+
 ## Flight snapshot
 
 Planned fields:

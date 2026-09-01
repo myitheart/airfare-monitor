@@ -13,7 +13,7 @@ from .config import AppSettings
 from .errors import CollectionError, ManualAttentionRequired
 from .excel_report import generate_workbook
 from .mail import send_report
-from .models import LegConfig, LegResult, LegStatus, RunReport, RunStatus
+from .models import LegConfig, LegResult, LegStatus, PreferredPriceReference, RunReport, RunStatus
 from .storage import SQLiteStore
 
 logger = logging.getLogger(__name__)
@@ -107,6 +107,26 @@ class MonitorService:
                 confirmed.add(initial.leg.id)
         return confirmed
 
+    def _attach_preferred_price_references(self, results: list[LegResult], *, before: datetime) -> None:
+        for result in results:
+            references: list[PreferredPriceReference] = []
+            for index, preferred in enumerate(result.leg.preferred_schedules):
+                reference = self.store.preferred_price_reference(
+                    result.leg.id,
+                    preferred.history_key(result.leg.departure_date),
+                    before=before,
+                )
+                flight = result.preferred_matches[index] if index < len(result.preferred_matches) else None
+                if reference.first_total_price_cny is None and flight is not None:
+                    reference = PreferredPriceReference(
+                        first_total_price_cny=flight.total_price_cny,
+                        first_captured_at=result.captured_at,
+                        previous_total_price_cny=reference.previous_total_price_cny,
+                        previous_captured_at=reference.previous_captured_at,
+                    )
+                references.append(reference)
+            result.preferred_price_references = references
+
     def run_once(self, *, send_email: bool = False) -> tuple[RunReport, object]:
         if not self.legs:
             raise ValueError("没有启用的航程")
@@ -121,6 +141,7 @@ class MonitorService:
             results.append(result)
 
         confirmed_ids = self._confirm_thresholds(results)
+        self._attach_preferred_price_references(results, before=started_at)
         report = RunReport(
             run_id=run_id,
             started_at=started_at,

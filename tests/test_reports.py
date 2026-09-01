@@ -18,6 +18,7 @@ from airfare_monitor.models import (
     LegConfig,
     LegResult,
     LegStatus,
+    PreferredPriceReference,
     PreferredSchedule,
     RunReport,
     RunStatus,
@@ -94,15 +95,55 @@ class ReportTests(unittest.TestCase):
             captured,
             flights=[flight],
             preferred_matches=[flight],
+            preferred_price_references=[
+                PreferredPriceReference(
+                    first_total_price_cny=Decimal("1200"),
+                    first_captured_at=datetime(2026, 8, 30, 9, 30),
+                    previous_total_price_cny=Decimal("1100"),
+                    previous_captured_at=datetime(2026, 8, 31, 9),
+                )
+            ],
             completed_response=True,
         )
         value = RunReport("run-1", captured, captured, RunStatus.SUCCESS, [result], set())
         message = build_message(value, MAIL, sender="sender@example.com", recipients=["to@example.com"])
         body = message.get_body(preferencelist=("plain",)).get_content()
-        self.assertIn("关注时段（实时含税价）", body)
+        self.assertIn("重点关注时段价格", body)
         self.assertIn("上海浦东 → 吉隆坡", body)
         self.assertIn("实际 09-27 07:40 → 09-27 13:15", body)
-        self.assertIn("MU001 · ¥1,060", body)
+        self.assertIn("本次：¥1,060", body)
+        self.assertIn("首次：¥1,200", body)
+        self.assertIn("较首次：下降 ¥140", body)
+        self.assertIn("上次：¥1,100", body)
+        self.assertIn("较上次：下降 ¥40", body)
+        self.assertLess(body.index("重点关注时段价格"), body.index("最低价备选"))
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = SQLiteStore(Path(directory) / "monitor.sqlite3")
+            store.initialize()
+            store.save_report(value)
+            first_reference = store.preferred_price_reference(
+                "leg-1", preference.history_key(configured.departure_date), before=datetime(2026, 8, 31, 10)
+            )
+            self.assertEqual(first_reference.first_total_price_cny, Decimal("1060"))
+            self.assertEqual(first_reference.previous_total_price_cny, Decimal("1060"))
+
+            later = datetime(2026, 8, 31, 10, 30)
+            cheaper = replace(flight, total_price_cny=Decimal("990"), captured_at=later)
+            later_result = LegResult(
+                configured,
+                LegStatus.SUCCESS,
+                later,
+                flights=[cheaper],
+                preferred_matches=[cheaper],
+                completed_response=True,
+            )
+            store.save_report(RunReport("run-2", later, later, RunStatus.SUCCESS, [later_result], set()))
+            later_reference = store.preferred_price_reference(
+                "leg-1", preference.history_key(configured.departure_date), before=datetime(2026, 8, 31, 11)
+            )
+            self.assertEqual(later_reference.first_total_price_cny, Decimal("1060"))
+            self.assertEqual(later_reference.previous_total_price_cny, Decimal("990"))
 
     def test_sqlite_and_workbook_roundtrip(self):
         with tempfile.TemporaryDirectory() as directory:

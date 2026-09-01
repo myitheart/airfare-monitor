@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .config import MailSettings
 from .errors import ConfigError
-from .models import LegResult, RunReport, RunStatus
+from .models import LegResult, PreferredPriceReference, RunReport, RunStatus
 
 
 def _price(value: object) -> str:
@@ -24,6 +24,30 @@ def _delta_text(value: object) -> str:
         return "—"
     number = float(value)
     return f"{number:+,.0f}"
+
+
+def _price_change(current: object, reference: object) -> str:
+    if current is None or reference is None:
+        return "—"
+    difference = current - reference
+    if difference > 0:
+        return f"上涨 {_price(difference)}"
+    if difference < 0:
+        return f"下降 {_price(-difference)}"
+    return "持平"
+
+
+def _reference_price(value: object, captured_at: object) -> str:
+    if value is None:
+        return "—"
+    stamp = f"（{captured_at:%m-%d %H:%M}）" if captured_at is not None else ""
+    return f"{_price(value)}{stamp}"
+
+
+def _preferred_reference(result: LegResult, index: int) -> PreferredPriceReference:
+    if index < len(result.preferred_price_references):
+        return result.preferred_price_references[index]
+    return PreferredPriceReference()
 
 
 def _preferred_schedule_text(result: LegResult, index: int) -> str:
@@ -41,10 +65,39 @@ def _preferred_schedule_text(result: LegResult, index: int) -> str:
         )
         return f"目标 {schedule} · {tolerance}内未找到匹配直达航班"
     actual = f"{flight.etd_local:%m-%d %H:%M} → {flight.eta_local:%m-%d %H:%M}"
-    return (
-        f"目标 {schedule} · 实际 {actual} · {flight.flight_codes_display} · "
-        f"{_price(flight.total_price_cny)}"
-    )
+    return f"目标 {schedule} · 实际 {actual} · {flight.flight_codes_display}"
+
+
+def _preferred_plain_lines(result: LegResult, index: int) -> list[str]:
+    flight = result.preferred_matches[index] if index < len(result.preferred_matches) else None
+    current = flight.total_price_cny if flight else None
+    reference = _preferred_reference(result, index)
+    return [
+        f"★ {_preferred_schedule_text(result, index)}",
+        (
+            f"  本次：{_price(current)}  "
+            f"首次：{_reference_price(reference.first_total_price_cny, reference.first_captured_at)}  "
+            f"较首次：{_price_change(current, reference.first_total_price_cny)}"
+        ),
+        (
+            f"  上次：{_reference_price(reference.previous_total_price_cny, reference.previous_captured_at)}  "
+            f"较上次：{_price_change(current, reference.previous_total_price_cny)}"
+        ),
+    ]
+
+
+def _preferred_html(result: LegResult, index: int) -> str:
+    flight = result.preferred_matches[index] if index < len(result.preferred_matches) else None
+    current = flight.total_price_cny if flight else None
+    reference = _preferred_reference(result, index)
+    return f"""<div style="background:#fff8e1;border-left:4px solid #f5a623;padding:10px;margin:8px 0">
+        <div><b>⭐ {html.escape(_preferred_schedule_text(result, index))}</b></div>
+        <div style="font-size:18px;margin-top:6px"><b>本次 {_price(current)}</b></div>
+        <div>首次 {_reference_price(reference.first_total_price_cny, reference.first_captured_at)} ·
+        较首次 {_price_change(current, reference.first_total_price_cny)}</div>
+        <div>上次 {_reference_price(reference.previous_total_price_cny, reference.previous_captured_at)} ·
+        较上次 {_price_change(current, reference.previous_total_price_cny)}</div>
+        </div>"""
 
 
 def build_subject(report: RunReport, settings: MailSettings) -> str:
@@ -75,12 +128,18 @@ def _leg_plain(result: LegResult, confirmed: bool) -> list[str]:
         f"状态：{result.status}  最低：{_price(minimum)}  心理价位：{_price(result.leg.expected_total_price_cny)}",
         f"与阈值：{_delta_text(threshold_delta)}  较上次：{_delta_text(previous_delta)}  确认命中：{'是' if confirmed else '否'}",
     ]
-    for flight in result.flights[:3]:
-        lines.append(f"- {flight.flight_codes_display} {flight.etd_local:%m-%d %H:%M} {_price(flight.total_price_cny)}")
     if result.leg.preferred_schedules:
-        lines.append("关注时段（实时含税价）：")
+        lines.append("【重点关注时段价格】")
         for index in range(len(result.leg.preferred_schedules)):
-            lines.append(f"★ {_preferred_schedule_text(result, index)}")
+            lines.extend(_preferred_plain_lines(result, index))
+    lines.append("最低价备选（前3条）：")
+    if result.flights:
+        for flight in result.flights[:3]:
+            lines.append(
+                f"- {flight.flight_codes_display} {flight.etd_local:%m-%d %H:%M} {_price(flight.total_price_cny)}"
+            )
+    else:
+        lines.append("- 无符合条件的航班")
     if result.error_message:
         lines.append(f"错误：{result.error_message}")
     return lines
@@ -114,14 +173,9 @@ def build_message(
         ) or "<li>无符合条件的航班</li>"
         preferred_flights = ""
         if result.leg.preferred_schedules:
-            preferred_items = "".join(
-                f"<li>{html.escape(_preferred_schedule_text(result, index))}</li>"
-                for index in range(len(result.leg.preferred_schedules))
-            )
-            preferred_flights = (
-                '<div style="margin-top:8px"><b>关注时段（实时含税价）</b>'
-                f'<ul style="padding-left:20px">{preferred_items}</ul></div>'
-            )
+            preferred_flights = '<div style="margin-top:10px"><b>重点关注时段价格</b>' + "".join(
+                _preferred_html(result, index) for index in range(len(result.leg.preferred_schedules))
+            ) + "</div>"
         cards.append(
             f"""<section style="border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0">
             <h3 style="margin:0 0 8px">{html.escape(result.leg.id)} · {html.escape(result.leg.route_display)}</h3>
@@ -129,8 +183,9 @@ def build_message(
             <div><b>最低 {_price(minimum)}</b> · 心理价位 {_price(result.leg.expected_total_price_cny)}</div>
             <div>与阈值 {_delta_text(threshold_delta)} · 较上次 {_delta_text(previous_delta)}</div>
             <div>状态 {html.escape(str(result.status))} · 确认命中 {'是' if confirmed else '否'}</div>
-            <ul style="padding-left:20px">{flights}</ul>
             {preferred_flights}
+            <div style="margin-top:10px"><b>最低价备选（前3条）</b>
+            <ul style="padding-left:20px">{flights}</ul></div>
             {f'<div style="color:#b00020">{html.escape(result.error_message)}</div>' if result.error_message else ''}
             </section>"""
         )

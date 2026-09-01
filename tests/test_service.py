@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import date, datetime, time
 from decimal import Decimal
 from pathlib import Path
@@ -16,7 +17,15 @@ from airfare_monitor.config import (
     StorageSettings,
 )
 from airfare_monitor.errors import CollectionError
-from airfare_monitor.models import EtdWindow, LegConfig, LegResult, LegStatus, RunStatus
+from airfare_monitor.models import (
+    EtdWindow,
+    FlightSnapshot,
+    LegConfig,
+    LegResult,
+    LegStatus,
+    PreferredSchedule,
+    RunStatus,
+)
 from airfare_monitor.service import MonitorService
 
 
@@ -68,3 +77,50 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(browser.calls, 2)
             self.assertEqual(report.status, RunStatus.SUCCESS)
             self.assertTrue(Path(workbook).is_file())
+
+    def test_first_preferred_price_uses_current_match_as_baseline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            preference = PreferredSchedule("上海 → 吉隆坡", time(7, 25), time(13))
+            configured = replace(route(), preferred_schedules=(preference,))
+            captured = datetime(2026, 8, 31, 10)
+            flight = FlightSnapshot(
+                "signature",
+                ("MU001",),
+                ("MU",),
+                "SHA",
+                "KUL",
+                configured.departure_date,
+                datetime(2026, 9, 27, 7, 25),
+                datetime(2026, 9, 27, 13),
+                335,
+                1,
+                True,
+                Decimal("800"),
+                Decimal("260"),
+                Decimal("1060"),
+                "CNY",
+                None,
+                None,
+                None,
+                None,
+                captured,
+            )
+            result = LegResult(
+                configured,
+                LegStatus.SUCCESS,
+                captured,
+                preferred_matches=[flight],
+                completed_response=True,
+            )
+            service = MonitorService(
+                [configured],
+                settings(Path(directory)),
+                browser=FakeBrowser(),
+                now=lambda: captured,
+            )
+            service.store.initialize()
+            service._attach_preferred_price_references([result], before=captured)
+            reference = result.preferred_price_references[0]
+            self.assertEqual(reference.first_total_price_cny, Decimal("1060"))
+            self.assertEqual(reference.first_captured_at, captured)
+            self.assertIsNone(reference.previous_total_price_cny)

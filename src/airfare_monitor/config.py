@@ -211,6 +211,8 @@ def load_routes(path: str | Path) -> list[LegConfig]:
         if origin == destination:
             raise ConfigError(f"{prefix} 的出发和到达机场不能相同")
 
+        departure_date = _parse_date(_required(item, "departure_date", prefix), f"{prefix}.departure_date")
+
         window = _mapping(_required(item, "etd_window", prefix), f"{prefix}.etd_window")
         cabin = _string(_required(item, "cabin_class", prefix), f"{prefix}.cabin_class").lower()
         if cabin not in _CABIN_CLASSES:
@@ -263,6 +265,9 @@ def load_routes(path: str | Path) -> list[LegConfig]:
                     destination_airport_iata=optional_iata("destination_airport_iata"),
                 )
             )
+        preference_keys = [preferred.history_key(departure_date) for preferred in preferred_schedules]
+        if len(preference_keys) != len(set(preference_keys)):
+            raise ConfigError(f"{prefix}.preferred_schedules 存在重复的机场和目标时刻")
 
         legs.append(
             LegConfig(
@@ -270,7 +275,7 @@ def load_routes(path: str | Path) -> list[LegConfig]:
                 enabled=_boolean(_required(item, "enabled", prefix), f"{prefix}.enabled"),
                 origin_airport_iata=origin,
                 destination_airport_iata=destination,
-                departure_date=_parse_date(_required(item, "departure_date", prefix), f"{prefix}.departure_date"),
+                departure_date=departure_date,
                 etd_window=EtdWindow(
                     start=_parse_time(_required(window, "start", f"{prefix}.etd_window"), f"{prefix}.etd_window.start"),
                     end=_parse_time(_required(window, "end", f"{prefix}.etd_window"), f"{prefix}.etd_window.end"),
