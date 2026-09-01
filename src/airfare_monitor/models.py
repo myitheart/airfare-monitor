@@ -43,6 +43,8 @@ class PreferredSchedule:
     departure_time: time
     arrival_time: time
     arrival_day_offset: int = 0
+    departure_tolerance_minutes: int = 0
+    arrival_tolerance_minutes: int = 0
     origin_airport_iata: str | None = None
     destination_airport_iata: str | None = None
 

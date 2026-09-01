@@ -187,3 +187,17 @@ class ParserTests(unittest.TestCase):
         _, preferred, _, _ = parse_completed_payload(value, configured, datetime(2026, 8, 31, 12))
         self.assertIsNotNone(preferred[0])
         self.assertEqual(preferred[0].eta_local, datetime(2026, 9, 28, 3))
+
+    def test_preferred_tolerance_chooses_closest_schedule_before_price(self):
+        preference = PreferredSchedule(
+            label="上海 → 吉隆坡",
+            departure_time=time(9, 50),
+            arrival_time=time(15, 20),
+            departure_tolerance_minutes=60,
+            arrival_tolerance_minutes=60,
+        )
+        configured = replace(leg(), preferred_schedules=(preference,))
+        _, preferred, _, _ = parse_completed_payload(payload(), configured, datetime(2026, 8, 31, 12))
+        self.assertIsNotNone(preferred[0])
+        self.assertEqual(preferred[0].flight_codes, ("MU123",))
+        self.assertEqual(preferred[0].total_price_cny, Decimal("880"))

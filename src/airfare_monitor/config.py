@@ -249,6 +249,16 @@ def load_routes(path: str | Path) -> list[LegConfig]:
                         f"{preferred_prefix}.arrival_day_offset",
                         allow_zero=True,
                     ),
+                    departure_tolerance_minutes=_positive_int(
+                        preference.get("departure_tolerance_minutes", 0),
+                        f"{preferred_prefix}.departure_tolerance_minutes",
+                        allow_zero=True,
+                    ),
+                    arrival_tolerance_minutes=_positive_int(
+                        preference.get("arrival_tolerance_minutes", 0),
+                        f"{preferred_prefix}.arrival_tolerance_minutes",
+                        allow_zero=True,
+                    ),
                     origin_airport_iata=optional_iata("origin_airport_iata"),
                     destination_airport_iata=optional_iata("destination_airport_iata"),
                 )

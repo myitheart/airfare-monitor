@@ -19,7 +19,7 @@
 | `cabin_class` | yes | Requested cabin class |
 | `preferred_schedules` | no | Exact schedules shown separately with live prices in each email |
 
-Each preferred schedule contains a display `label`, exact departure and arrival times, an `arrival_day_offset`, and optional actual origin/destination airport IATA codes. Preferred matches are selected from the complete eligible response before the cheapest `top_n` slice is applied.
+Each preferred schedule contains a display `label`, target departure and arrival times, an `arrival_day_offset`, independently configurable departure/arrival tolerance minutes, and optional actual origin/destination airport IATA codes. Preferred matches are selected from the complete eligible response before the cheapest `top_n` slice is applied.
 
 ## Flight snapshot
 

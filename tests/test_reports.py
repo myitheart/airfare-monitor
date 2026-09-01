@@ -59,6 +59,8 @@ class ReportTests(unittest.TestCase):
             "上海浦东 → 吉隆坡",
             time(7, 25),
             time(13),
+            departure_tolerance_minutes=60,
+            arrival_tolerance_minutes=60,
             origin_airport_iata="PVG",
             destination_airport_iata="KUL",
         )
@@ -71,8 +73,8 @@ class ReportTests(unittest.TestCase):
             origin_airport_iata="PVG",
             destination_airport_iata="KUL",
             departure_date=date(2026, 9, 27),
-            etd_local=datetime(2026, 9, 27, 7, 25),
-            eta_local=datetime(2026, 9, 27, 13),
+            etd_local=datetime(2026, 9, 27, 7, 40),
+            eta_local=datetime(2026, 9, 27, 13, 15),
             duration_minutes=335,
             segment_count=1,
             is_direct=True,
@@ -99,6 +101,7 @@ class ReportTests(unittest.TestCase):
         body = message.get_body(preferencelist=("plain",)).get_content()
         self.assertIn("关注时段（实时含税价）", body)
         self.assertIn("上海浦东 → 吉隆坡", body)
+        self.assertIn("实际 09-27 07:40 → 09-27 13:15", body)
         self.assertIn("MU001 · ¥1,060", body)
 
     def test_sqlite_and_workbook_roundtrip(self):

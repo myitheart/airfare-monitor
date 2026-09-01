@@ -34,9 +34,11 @@ The body should be readable on a phone and contain:
    - difference from threshold;
    - difference from previous run;
    - cheapest three flight numbers with ETD and total prices;
-   - configured preferred schedules with their live total prices, even when outside `top_n`;
+   - configured preferred schedules with target times, actual matched times and live total prices, even when outside `top_n`;
    - success, partial, failed or manual-attention status.
 3. A clear reminder that prices are observed listings and must be confirmed in the app.
+
+Preferred schedules may define independent departure and arrival tolerance minutes. Matching first requires the configured actual airports, then chooses the itinerary with the smallest combined time deviation inside both tolerance limits; total price is only a tie-breaker.
 
 ## Workbook layout
 

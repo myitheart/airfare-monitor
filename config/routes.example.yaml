@@ -23,6 +23,8 @@ legs:
         departure_time: "07:25"
         arrival_time: "13:00"
         arrival_day_offset: 0
+        departure_tolerance_minutes: 60
+        arrival_tolerance_minutes: 60
         origin_airport_iata: PVG
         destination_airport_iata: KUL
 

@@ -123,6 +123,8 @@ legs:
         departure_time: "07:25"
         arrival_time: "13:00"
         arrival_day_offset: 0
+        departure_tolerance_minutes: 60
+        arrival_tolerance_minutes: 60
         origin_airport_iata: PVG
         destination_airport_iata: KUL
 ```
@@ -157,10 +159,12 @@ legs:
 | `departure_time` | 精确计划起飞时间，格式 `HH:MM` |
 | `arrival_time` | 精确计划到达时间，格式 `HH:MM` |
 | `arrival_day_offset` | 到达日相对出发日的天数；当天为 `0`，次日为 `1` |
+| `departure_tolerance_minutes` | 允许实际起飞时间相对目标时刻提前或延后的分钟数，默认 `0` |
+| `arrival_tolerance_minutes` | 允许实际到达时间相对目标时刻提前或延后的分钟数，默认 `0` |
 | `origin_airport_iata` | 可选的实际起飞机场，用于在城市代码搜索结果中精确匹配机场 |
 | `destination_airport_iata` | 可选的实际到达机场 |
 
-关注航班按机场、日期、ETD 和 ETA 精确匹配。即使其价格没有进入最低价前 `top_n`，邮件仍会单独展示；本轮没有匹配航班时会显示“本次未找到匹配直达航班”。配置中的关注时刻不会改变心理价位，也不会直接触发低价命中。
+关注航班先按实际机场筛选，再在配置的起飞和到达容差内选择与目标时刻总体最接近的行程；距离相同时优先较低总价。两个容差省略时均为 `0`，即精确到分钟匹配。即使关注航班没有进入最低价前 `top_n`，邮件仍会单独展示目标时刻、实际匹配时刻及实时价格；容差内没有匹配航班时会明确提示。配置中的关注时刻不会改变心理价位，也不会直接触发低价命中。
 
 全天监控可使用：
 

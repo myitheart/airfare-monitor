@@ -35,8 +35,16 @@ def _preferred_schedule_text(result: LegResult, index: int) -> str:
     )
     flight = result.preferred_matches[index] if index < len(result.preferred_matches) else None
     if flight is None:
-        return f"{schedule} · 本次未找到匹配直达航班"
-    return f"{schedule} · {flight.flight_codes_display} · {_price(flight.total_price_cny)}"
+        tolerance = (
+            f"起飞±{preferred.departure_tolerance_minutes}分钟/"
+            f"到达±{preferred.arrival_tolerance_minutes}分钟"
+        )
+        return f"目标 {schedule} · {tolerance}内未找到匹配直达航班"
+    actual = f"{flight.etd_local:%m-%d %H:%M} → {flight.eta_local:%m-%d %H:%M}"
+    return (
+        f"目标 {schedule} · 实际 {actual} · {flight.flight_codes_display} · "
+        f"{_price(flight.total_price_cny)}"
+    )
 
 
 def build_subject(report: RunReport, settings: MailSettings) -> str:

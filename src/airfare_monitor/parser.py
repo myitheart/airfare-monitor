@@ -372,26 +372,35 @@ def parse_completed_payload(
     preferred_matches: list[FlightSnapshot | None] = []
     for preferred in leg.preferred_schedules:
         arrival_date = leg.departure_date + timedelta(days=preferred.arrival_day_offset)
-        match = next(
-            (
-                flight
-                for flight in ranked
-                if flight.etd_local.date() == leg.departure_date
-                and (flight.etd_local.hour, flight.etd_local.minute)
-                == (preferred.departure_time.hour, preferred.departure_time.minute)
-                and flight.eta_local.date() == arrival_date
-                and (flight.eta_local.hour, flight.eta_local.minute)
-                == (preferred.arrival_time.hour, preferred.arrival_time.minute)
-                and (
-                    preferred.origin_airport_iata is None
-                    or flight.origin_airport_iata == preferred.origin_airport_iata
-                )
-                and (
-                    preferred.destination_airport_iata is None
-                    or flight.destination_airport_iata == preferred.destination_airport_iata
-                )
+        target_departure = datetime.combine(leg.departure_date, preferred.departure_time)
+        target_arrival = datetime.combine(arrival_date, preferred.arrival_time)
+        matches: list[tuple[float, float, FlightSnapshot]] = []
+        for flight in ranked:
+            if preferred.origin_airport_iata and flight.origin_airport_iata != preferred.origin_airport_iata:
+                continue
+            if (
+                preferred.destination_airport_iata
+                and flight.destination_airport_iata != preferred.destination_airport_iata
+            ):
+                continue
+            departure_delta = abs((flight.etd_local - target_departure).total_seconds()) / 60
+            arrival_delta = abs((flight.eta_local - target_arrival).total_seconds()) / 60
+            if departure_delta > preferred.departure_tolerance_minutes:
+                continue
+            if arrival_delta > preferred.arrival_tolerance_minutes:
+                continue
+            matches.append((departure_delta, arrival_delta, flight))
+        match = min(
+            matches,
+            key=lambda item: (
+                item[0] + item[1],
+                item[0],
+                item[1],
+                item[2].total_price_cny,
+                item[2].flight_signature,
             ),
-            None,
+            default=None,
         )
-        preferred_matches.append(match)
+        matched_flight = match[2] if match is not None else None
+        preferred_matches.append(matched_flight)
     return ranked[: leg.top_n], preferred_matches, len(candidates), eligible_count
