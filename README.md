@@ -1,14 +1,15 @@
 # Airfare Monitor
 
-个人使用的多航程航班价格监控工具。程序使用 DrissionPage 控制一个独立 Chromium Profile，按照正常页面流程在去哪儿国际机票搜索框中选择起运地、目的地和日期，然后监听 `/touch/api/inter/wwwsearch` 的增量响应。
+个人使用的多航程航班价格监控工具。程序使用 DrissionPage 控制一个独立 Chromium Profile，并按航线自动选择查询来源：中国大陆境内航线使用同程旅行，跨境/国际航线使用去哪儿。去哪儿按照正常页面流程填写搜索框并点击搜索；同程直接打开包含航线、中文城市名和日期的公开结果页 URL，不操作城市联想。程序只读取浏览器实际收到的数据。
 
-只有 `result.ctrlInfo.completed == true` 的最终响应才会作为成功结果。程序默认保留每程含税总价最低的 10 个直达航班，写入 SQLite、生成一份合并 Excel，并发送一封手机可读的摘要邮件。
+去哪儿只有 `result.ctrlInfo.completed == true` 的最终响应才会作为成功结果；同程直接结果页必须等到 Nuxt 页面状态报告 `dataflag == last`，并通过航线和日期一致性校验。程序默认保留每程含税总价最低的 10 个直达航班，写入 SQLite、生成一份合并 Excel，并发送一封手机可读的摘要邮件。
 
-本项目只负责查询、记录和通知，不登录去哪儿，不自动下单或支付，也不处理或绕过验证码、设备验证。
+本项目只负责查询、记录和通知，不登录查询网站，不自动下单或支付，也不处理或绕过验证码、设备验证。
 
 ## 已实现功能
 
 - 任意数量的启用航程串行采集，避免搜索会话互相干扰。
+- 自动判定中国大陆国内/跨境航线，分别使用同程旅行/去哪儿；每程可显式覆盖。
 - 机场/城市 IATA 代码联想选择，保存航班实际起降机场。
 - 仅接受完整搜索响应，不把中间增量结果记为成功。
 - 直达和 ETD 时间窗筛选，按 CNY 含税总价升序排列。
@@ -47,7 +48,7 @@ airfare-monitor/
 - Python 3.11 或更新版本，推荐 Python 3.12。
 - 可用的 Chrome、Chromium 或 Edge 浏览器。
 - 一个支持 SMTP 的邮箱及其 SMTP 授权码。
-- 能正常访问去哪儿国际机票页面。
+- 能正常访问去哪儿国际机票和同程旅行机票页面。
 
 ### 1. 克隆代码
 
@@ -116,6 +117,7 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    market: auto
 
     # 可选：在邮件中单独展示某个关注时刻的实时价格
     preferred_schedules:
@@ -149,7 +151,30 @@ legs:
 | `adult_count` | 成人数量，至少为 1 |
 | `child_count` | 儿童数量，可以为 0 |
 | `cabin_class` | `economy`、`premium_economy`、`business` 或 `first` |
+| `market` | 可选，默认 `auto`；也可填写 `domestic` 或 `international` 强制选择来源 |
 | `preferred_schedules` | 可选关注时刻列表；邮件会在最低价 3 条之外展示匹配航班的实时含税价 |
+
+### 国内/国际来源选择
+
+推荐保留：
+
+```yaml
+market: auto
+```
+
+程序使用随项目安装的 IATA 机场国家数据判断：两个机场都属于中国大陆（国家代码 `CN`）时使用同程，其余航线使用去哪儿。例如 `SHA-XMN` 自动走同程，`SHA-KUL` 自动走去哪儿。香港、澳门及跨境航线不会按中国大陆国内航线处理。
+
+如果使用的是机场数据集中不存在的城市聚合代码，程序会停止该程并提示显式选择，避免查错网站：
+
+```yaml
+market: domestic       # 强制使用同程
+# 或
+market: international  # 强制使用去哪儿
+```
+
+同程国内采集当前要求 `direct_only: true`。这是为了确保 `flight_signature` 具备完整航段身份；录制响应对经停/中转组合没有提供足够完整的逐段信息。
+
+同程列表页显示的“¥…起”是票面价，不是本项目用于告警的含税价。程序会把响应中的成人机场费和燃油费加入票面价后再排序、写入报表和比较心理价位。例如录制中的 `¥350起` 加 `¥120` 税费后，监控总价为 `¥470`。任一税费字段缺失时不会把该报价误记为含税价。
 
 每个 `preferred_schedules` 项使用以下字段：
 
@@ -217,19 +242,21 @@ browser:
   search_completion_timeout_seconds: 75
   restart_after_consecutive_failures: 2
   search_url_template: "https://flight.qunar.com/site/oneway_list_inter.htm"
+  tongcheng_search_url_template: "https://www.ly.com/flights/itinerary/oneway/{origin}-{destination}?date={date}&from={origin_name}&to={destination_name}&fromairport=&toairport=&p=&childticket=0,0"
 ```
 
 - `headless: false` 会显示浏览器窗口，首次部署和排查问题时建议保持此设置。
 - `user_data_path` 必须指向项目独立 Profile，不要改成日常 Chrome Profile。
 - `local_port` 被占用时可换成其他未使用端口，例如 `9444`。
 - `search_completion_timeout_seconds` 是等待最终完整响应的最长时间。
-- `search_url_template` 是已经验证的国际单程页面，除非页面结构变化，不建议修改。
+- `search_url_template` 是去哪儿国际单程页面。
+- `tongcheng_search_url_template` 是同程结果页入口，用于加载录制中验证过的国内搜索表单；不要删除其中的占位符。
 
 ### 低价二次确认
 
 ```yaml
 collection:
-  source: qunar
+  source: auto
   currency: CNY
   sort_by: total_price
   require_completed_response: true
@@ -292,7 +319,7 @@ SMTP_RECIPIENTS=first@example.com,second@example.com
 .\.venv\Scripts\airfare-monitor.exe validate
 ```
 
-该命令不会启动浏览器、访问去哪儿或发送邮件。成功时会输出启用航程数量。
+该命令不会启动浏览器、访问查询网站或发送邮件。成功时会输出启用航程数量。
 
 ### 2. 运行离线测试
 
@@ -300,7 +327,7 @@ SMTP_RECIPIENTS=first@example.com,second@example.com
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-离线测试不会访问去哪儿，也不会发送邮件。
+离线测试不会访问去哪儿或同程，也不会发送邮件。
 
 ### 3. 采集一次但不发邮件
 
@@ -308,7 +335,7 @@ SMTP_RECIPIENTS=first@example.com,second@example.com
 .\.venv\Scripts\airfare-monitor.exe run-once
 ```
 
-该命令会真实访问去哪儿、写入 SQLite 并生成 Excel，但不会发送邮件。
+该命令会根据各程自动访问去哪儿或同程、写入 SQLite 并生成 Excel，但不会发送邮件。
 
 ### 4. 完整运行一次并发送邮件
 
@@ -412,7 +439,9 @@ data/browser-profile/
 
 部分航程失败时，主题包含 `[部分失败]`。邮件正文使用“中文名（IATA）”显示航程，并优先展示独立的“重点关注时段价格”卡片，包括目标/实际时刻、本次价、首次监控价、较首次变化、上次价和较上次变化；最便宜的三个航班作为备选区域排在其后。价格和库存仍需在 App 中最终确认。
 
-“首次监控价”是该关注目标第一次成功匹配到航班时的含税总价；未匹配的运行不会建立或覆盖基准。修改容差不会重置首次价，修改出发日期、目标起降时间或实际机场会视为新的关注目标并重新建立首次价。该历史从启用此功能后的第一次成功采集开始，不会从旧的最低价快照中推测补录。
+“首次监控价”是该关注目标第一次成功匹配到航班时的含税费总价；未匹配的运行不会建立或覆盖基准。修改容差不会重置首次价，修改出发日期、目标起降时间或实际机场会视为新的关注目标并重新建立首次价。该历史从启用此功能后的第一次成功采集开始，不会从旧的最低价快照中推测补录。
+
+同程国内航班在邮件的本次最低价、最低价备选和重点关注时段中同时显示价格拆分，例如：`票面 ¥350 + 机建燃油 ¥120 = 预计支付 ¥470`。心理价位、首次价、上次价和价格变化仍统一使用预计支付总价计算。
 
 ## 九、常见问题
 
@@ -431,13 +460,14 @@ Copy-Item config\settings.example.yaml config\settings.yaml
 - 确认代码是去哪儿页面可识别的 IATA 地点代码。
 - 手工打开去哪儿国际机票页面，确认该地点能正常搜索。
 
-程序始终选择页面返回的第一条联想，不会自行构造 Bella 或重放接口。
+去哪儿通过页面联想项确认地点，不会自行构造 Bella；同程让结果页自行发起查询，不会重放录制包里的 Cookie、Token 或接口请求。
 
 ### 一直等待完整响应或超时
 
-- 确认网络能够正常访问去哪儿。
+- 确认网络能够正常访问该航程选择的来源网站。
 - 保持 `headless: false`，观察是否出现验证码或设备验证。
 - 适当提高 `search_completion_timeout_seconds`。
+- 去哪儿必须等到 `completed == true`；同程必须收到 `dataflag == all` 且航线日期一致的成功响应。
 - 不完整响应不会被保存为成功，也不会触发低价提醒。
 
 ### 出现验证码或设备验证
@@ -494,5 +524,5 @@ git pull
 - 不在 Git 中保存 SMTP 密码、Cookie、浏览器 Token 或个人邮箱配置。
 - 不使用用户日常浏览器 Profile。
 - 不实现登录、下单、支付、验证码绕过或设备挑战绕过。
-- 测试默认只使用本地模拟响应；真实采集和真实邮件由用户通过运行命令明确触发。
+- 测试默认只使用本地模拟响应；录制包中的 Cookie/Token 不会重放；真实采集和真实邮件由用户通过运行命令明确触发。
 - 报价是采集时的页面结果，最终价格、税费、库存和行李规则以 App 或航司确认结果为准。

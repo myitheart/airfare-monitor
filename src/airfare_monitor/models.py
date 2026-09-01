@@ -79,6 +79,7 @@ class LegConfig:
     origin_name_zh: str | None = None
     destination_name_zh: str | None = None
     preferred_schedules: tuple[PreferredSchedule, ...] = ()
+    market: str = "auto"
 
     @property
     def route_label(self) -> str:

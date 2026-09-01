@@ -17,6 +17,8 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    # auto: 中国大陆境内走同程，其余走去哪儿；也可显式填 domestic/international。
+    market: auto
     # Optional exact schedules to call out separately in every email.
     preferred_schedules:
       - label: 出发地 → 到达地
@@ -44,6 +46,7 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    market: auto
 
   - id: leg-3
     enabled: true
@@ -61,6 +64,7 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    market: auto
 
   - id: leg-4
     enabled: true
@@ -78,3 +82,4 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    market: auto

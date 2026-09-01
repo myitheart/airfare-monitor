@@ -9,6 +9,7 @@ description = "Personal multi-leg airfare monitoring and email reporting"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "airportsdata>=20260803",
   "DrissionPage>=4,<5",
   "openpyxl>=3.1,<4",
   "PyYAML>=6,<7",

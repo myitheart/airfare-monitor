@@ -17,6 +17,7 @@ from .models import EtdWindow, LegConfig, PreferredSchedule
 
 _IATA_RE = re.compile(r"^[A-Z]{3}$")
 _CABIN_CLASSES = {"economy", "premium_economy", "business", "first"}
+_MARKETS = {"auto", "domestic", "international"}
 
 
 def load_local_env(path: str | Path, *, override: bool = False) -> None:
@@ -64,6 +65,10 @@ class BrowserSettings:
     search_completion_timeout_seconds: int
     restart_after_consecutive_failures: int
     search_url_template: str
+    tongcheng_search_url_template: str = (
+        "https://www.ly.com/flights/itinerary/oneway/{origin}-{destination}"
+        "?date={date}&from={origin_name}&to={destination_name}&fromairport=&toairport=&p=&childticket=0,0"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +222,9 @@ def load_routes(path: str | Path) -> list[LegConfig]:
         cabin = _string(_required(item, "cabin_class", prefix), f"{prefix}.cabin_class").lower()
         if cabin not in _CABIN_CLASSES:
             raise ConfigError(f"{prefix}.cabin_class 不受支持：{cabin}")
+        market = _string(item.get("market", "auto"), f"{prefix}.market").lower()
+        if market not in _MARKETS:
+            raise ConfigError(f"{prefix}.market 必须是 auto、domestic 或 international")
 
         raw_preferred = item.get("preferred_schedules", [])
         if not isinstance(raw_preferred, list):
@@ -301,6 +309,7 @@ def load_routes(path: str | Path) -> list[LegConfig]:
                     else None
                 ),
                 preferred_schedules=tuple(preferred_schedules),
+                market=market,
             )
         )
     if not any(leg.enabled for leg in legs):
@@ -363,6 +372,15 @@ def load_settings(path: str | Path, *, project_root: str | Path | None = None) -
             ),
             search_url_template=_string(
                 _required(browser, "search_url_template", "settings.browser"), "settings.browser.search_url_template"
+            ),
+            tongcheng_search_url_template=_string(
+                browser.get(
+                    "tongcheng_search_url_template",
+                    "https://www.ly.com/flights/itinerary/oneway/{origin}-{destination}"
+                    "?date={date}&from={origin_name}&to={destination_name}"
+                    "&fromairport=&toairport=&p=&childticket=0,0",
+                ),
+                "settings.browser.tongcheng_search_url_template",
             ),
         ),
         collection=CollectionSettings(

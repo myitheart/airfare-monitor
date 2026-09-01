@@ -145,6 +145,48 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(later_reference.first_total_price_cny, Decimal("1060"))
             self.assertEqual(later_reference.previous_total_price_cny, Decimal("990"))
 
+    def test_domestic_mail_shows_fare_fees_and_estimated_payment(self):
+        captured = datetime(2026, 9, 1, 11, 8)
+        domestic = replace(
+            route(),
+            id="leg-5",
+            destination_airport_iata="XMN",
+            destination_name_zh="厦门",
+            departure_date=date(2026, 9, 29),
+            market="auto",
+        )
+        flight = FlightSnapshot(
+            flight_signature="domestic-1",
+            flight_codes=("9C8815",),
+            carrier_codes=("9C",),
+            origin_airport_iata="SHA",
+            destination_airport_iata="XMN",
+            departure_date=date(2026, 9, 29),
+            etd_local=datetime(2026, 9, 29, 7, 15),
+            eta_local=datetime(2026, 9, 29, 9, 5),
+            duration_minutes=110,
+            segment_count=1,
+            is_direct=True,
+            base_price_cny=Decimal("350"),
+            tax_cny=Decimal("120"),
+            total_price_cny=Decimal("470"),
+            currency_code="CNY",
+            remaining_seats=None,
+            free_baggage_piece=None,
+            free_baggage_weight=None,
+            source_domain="ly.com",
+            captured_at=captured,
+        )
+        result = LegResult(domestic, LegStatus.SUCCESS, captured, flights=[flight], completed_response=True)
+        value = RunReport("run-domestic", captured, captured, RunStatus.SUCCESS, [result], set())
+        message = build_message(value, MAIL, sender="sender@example.com", recipients=["to@example.com"])
+        expected = "票面 ¥350 + 机建燃油 ¥120 = 预计支付 ¥470"
+        plain = message.get_body(preferencelist=("plain",)).get_content()
+        html_body = message.get_body(preferencelist=("html",)).get_content()
+        self.assertGreaterEqual(plain.count(expected), 2)
+        self.assertIn(expected, html_body)
+        self.assertIn("国内航班同时显示票面价、机建燃油和预计支付总价", plain)
+
     def test_sqlite_and_workbook_roundtrip(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SQLiteStore(Path(directory) / "monitor.sqlite3")

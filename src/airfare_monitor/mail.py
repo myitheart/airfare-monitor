@@ -12,11 +12,23 @@ from pathlib import Path
 
 from .config import MailSettings
 from .errors import ConfigError
-from .models import LegResult, PreferredPriceReference, RunReport, RunStatus
+from .models import FlightSnapshot, LegResult, PreferredPriceReference, RunReport, RunStatus
 
 
 def _price(value: object) -> str:
     return "—" if value is None else f"¥{value:,.0f}"
+
+
+def _flight_price_text(flight: FlightSnapshot | None) -> str:
+    """Show Tongcheng domestic mandatory-fee detail; keep other sources compact."""
+    if flight is None:
+        return "—"
+    if flight.source_domain == "ly.com" and flight.base_price_cny is not None and flight.tax_cny is not None:
+        return (
+            f"票面 {_price(flight.base_price_cny)} + 机建燃油 {_price(flight.tax_cny)}"
+            f" = 预计支付 {_price(flight.total_price_cny)}"
+        )
+    return _price(flight.total_price_cny)
 
 
 def _delta_text(value: object) -> str:
@@ -75,7 +87,7 @@ def _preferred_plain_lines(result: LegResult, index: int) -> list[str]:
     return [
         f"★ {_preferred_schedule_text(result, index)}",
         (
-            f"  本次：{_price(current)}  "
+            f"  本次：{_flight_price_text(flight)}  "
             f"首次：{_reference_price(reference.first_total_price_cny, reference.first_captured_at)}  "
             f"较首次：{_price_change(current, reference.first_total_price_cny)}"
         ),
@@ -92,7 +104,7 @@ def _preferred_html(result: LegResult, index: int) -> str:
     reference = _preferred_reference(result, index)
     return f"""<div style="background:#fff8e1;border-left:4px solid #f5a623;padding:10px;margin:8px 0">
         <div><b>⭐ {html.escape(_preferred_schedule_text(result, index))}</b></div>
-        <div style="font-size:18px;margin-top:6px"><b>本次 {_price(current)}</b></div>
+        <div style="font-size:18px;margin-top:6px"><b>本次 {html.escape(_flight_price_text(flight))}</b></div>
         <div>首次 {_reference_price(reference.first_total_price_cny, reference.first_captured_at)} ·
         较首次 {_price_change(current, reference.first_total_price_cny)}</div>
         <div>上次 {_reference_price(reference.previous_total_price_cny, reference.previous_captured_at)} ·
@@ -125,7 +137,7 @@ def _leg_plain(result: LegResult, confirmed: bool) -> list[str]:
     previous_delta = minimum - result.previous_min_total_cny if minimum is not None and result.previous_min_total_cny is not None else None
     lines = [
         f"{result.leg.id} {result.leg.route_display} {result.leg.departure_date} {result.leg.etd_window.display()}",
-        f"状态：{result.status}  最低：{_price(minimum)}  心理价位：{_price(result.leg.expected_total_price_cny)}",
+        f"状态：{result.status}  最低：{_flight_price_text(result.flights[0] if result.flights else None)}  心理价位：{_price(result.leg.expected_total_price_cny)}",
         f"与阈值：{_delta_text(threshold_delta)}  较上次：{_delta_text(previous_delta)}  确认命中：{'是' if confirmed else '否'}",
     ]
     if result.leg.preferred_schedules:
@@ -136,7 +148,7 @@ def _leg_plain(result: LegResult, confirmed: bool) -> list[str]:
     if result.flights:
         for flight in result.flights[:3]:
             lines.append(
-                f"- {flight.flight_codes_display} {flight.etd_local:%m-%d %H:%M} {_price(flight.total_price_cny)}"
+                f"- {flight.flight_codes_display} {flight.etd_local:%m-%d %H:%M} {_flight_price_text(flight)}"
             )
     else:
         lines.append("- 无符合条件的航班")
@@ -168,7 +180,8 @@ def build_message(
         threshold_delta = minimum - result.leg.expected_total_price_cny if minimum is not None else None
         previous_delta = minimum - result.previous_min_total_cny if minimum is not None and result.previous_min_total_cny is not None else None
         flights = "".join(
-            f"<li>{html.escape(flight.flight_codes_display)} · {flight.etd_local:%m-%d %H:%M} · {_price(flight.total_price_cny)}</li>"
+            f"<li>{html.escape(flight.flight_codes_display)} · {flight.etd_local:%m-%d %H:%M} · "
+            f"{html.escape(_flight_price_text(flight))}</li>"
             for flight in result.flights[:3]
         ) or "<li>无符合条件的航班</li>"
         preferred_flights = ""
@@ -180,7 +193,7 @@ def build_message(
             f"""<section style="border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0">
             <h3 style="margin:0 0 8px">{html.escape(result.leg.id)} · {html.escape(result.leg.route_display)}</h3>
             <div>{result.leg.departure_date} · ETD {result.leg.etd_window.display()}</div>
-            <div><b>最低 {_price(minimum)}</b> · 心理价位 {_price(result.leg.expected_total_price_cny)}</div>
+            <div><b>最低 {html.escape(_flight_price_text(result.flights[0] if result.flights else None))}</b> · 心理价位 {_price(result.leg.expected_total_price_cny)}</div>
             <div>与阈值 {_delta_text(threshold_delta)} · 较上次 {_delta_text(previous_delta)}</div>
             <div>状态 {html.escape(str(result.status))} · 确认命中 {'是' if confirmed else '否'}</div>
             {preferred_flights}
@@ -189,7 +202,7 @@ def build_message(
             {f'<div style="color:#b00020">{html.escape(result.error_message)}</div>' if result.error_message else ''}
             </section>"""
         )
-    reminder = "价格为采集时观察到的含税总价，库存和价格可能变化，请务必在 App 中最终确认。"
+    reminder = "国际航班显示采集时的含税总价；国内航班同时显示票面价、机建燃油和预计支付总价。库存和价格可能变化，请务必在 App 中最终确认。"
     plain.append(reminder)
     message.set_content("\n".join(plain))
     message.add_alternative(

@@ -15,9 +15,11 @@ browser:
   # Keep this page URL configurable: Qunar's anonymous page flow can change.
   # The page must trigger /touch/api/inter/wwwsearch by normal browser behavior.
   search_url_template: "https://flight.qunar.com/site/oneway_list_inter.htm"
+  # Tongcheng domestic result page used to load its recorded search form.
+  tongcheng_search_url_template: "https://www.ly.com/flights/itinerary/oneway/{origin}-{destination}?date={date}&from={origin_name}&to={destination_name}&fromairport=&toairport=&p=&childticket=0,0"
 
 collection:
-  source: qunar
+  source: auto
   currency: CNY
   sort_by: total_price
   require_completed_response: true

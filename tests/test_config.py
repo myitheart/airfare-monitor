@@ -25,6 +25,7 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    market: auto
     preferred_schedules:
       - label: 上海浦东 → 吉隆坡
         departure_time: '07:25'
@@ -53,6 +54,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(legs[0].preferred_schedules[0].departure_time.strftime("%H:%M"), "07:25")
         self.assertEqual(legs[0].preferred_schedules[0].departure_tolerance_minutes, 60)
         self.assertEqual(legs[0].preferred_schedules[0].arrival_tolerance_minutes, 60)
+        self.assertEqual(legs[0].market, "auto")
 
     def test_rejects_date_in_etd_window(self):
         with self.assertRaisesRegex(ConfigError, "HH:MM"):
@@ -61,6 +63,10 @@ class ConfigTests(unittest.TestCase):
     def test_rejects_airline_code_as_airport(self):
         with self.assertRaisesRegex(ConfigError, "三个英文字母"):
             self._load(VALID.replace("SHA", "MU"))
+
+    def test_rejects_unknown_market_mode(self):
+        with self.assertRaisesRegex(ConfigError, "market"):
+            self._load(VALID.replace("market: auto", "market: moon"))
 
     def test_loads_git_ignored_env_without_overriding_process(self):
         with tempfile.TemporaryDirectory() as directory:

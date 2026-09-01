@@ -10,12 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
 from .errors import IncompleteResponseError, ParseError
 from .models import FlightSnapshot, LegConfig, Segment
+from .ranking import rank_flights
 
 _FLIGHT_CODE_RE = re.compile(r"^([A-Z0-9]{2,3})\s*[- ]?\s*([0-9]{1,4}[A-Z]?)$", re.IGNORECASE)
 
@@ -360,47 +361,5 @@ def parse_completed_payload(
         preview = "; ".join(parse_failures[:3])
         raise ParseError(f"所有 {len(candidates)} 个组合均解析失败：{preview}")
 
-    eligible.sort(key=lambda flight: (flight.total_price_cny, flight.etd_local, flight.flight_signature))
-    # Qunar may return the same itinerary from multiple suppliers.  The
-    # signature intentionally excludes supplier and price, so keep only its
-    # cheapest total-price offer before ranking.
-    unique: dict[str, FlightSnapshot] = {}
-    for flight in eligible:
-        unique.setdefault(flight.flight_signature, flight)
-    ranked = list(unique.values())
-    eligible_count = len(ranked)
-    preferred_matches: list[FlightSnapshot | None] = []
-    for preferred in leg.preferred_schedules:
-        arrival_date = leg.departure_date + timedelta(days=preferred.arrival_day_offset)
-        target_departure = datetime.combine(leg.departure_date, preferred.departure_time)
-        target_arrival = datetime.combine(arrival_date, preferred.arrival_time)
-        matches: list[tuple[float, float, FlightSnapshot]] = []
-        for flight in ranked:
-            if preferred.origin_airport_iata and flight.origin_airport_iata != preferred.origin_airport_iata:
-                continue
-            if (
-                preferred.destination_airport_iata
-                and flight.destination_airport_iata != preferred.destination_airport_iata
-            ):
-                continue
-            departure_delta = abs((flight.etd_local - target_departure).total_seconds()) / 60
-            arrival_delta = abs((flight.eta_local - target_arrival).total_seconds()) / 60
-            if departure_delta > preferred.departure_tolerance_minutes:
-                continue
-            if arrival_delta > preferred.arrival_tolerance_minutes:
-                continue
-            matches.append((departure_delta, arrival_delta, flight))
-        match = min(
-            matches,
-            key=lambda item: (
-                item[0] + item[1],
-                item[0],
-                item[1],
-                item[2].total_price_cny,
-                item[2].flight_signature,
-            ),
-            default=None,
-        )
-        matched_flight = match[2] if match is not None else None
-        preferred_matches.append(matched_flight)
-    return ranked[: leg.top_n], preferred_matches, len(candidates), eligible_count
+    ranked, preferred_matches, eligible_count = rank_flights(eligible, leg)
+    return ranked, preferred_matches, len(candidates), eligible_count
