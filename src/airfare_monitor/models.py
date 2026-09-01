@@ -36,6 +36,18 @@ class EtdWindow:
 
 
 @dataclass(frozen=True, slots=True)
+class PreferredSchedule:
+    """One exact itinerary schedule that should be called out in reports."""
+
+    label: str
+    departure_time: time
+    arrival_time: time
+    arrival_day_offset: int = 0
+    origin_airport_iata: str | None = None
+    destination_airport_iata: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class LegConfig:
     id: str
     enabled: bool
@@ -51,6 +63,7 @@ class LegConfig:
     cabin_class: str
     origin_name_zh: str | None = None
     destination_name_zh: str | None = None
+    preferred_schedules: tuple[PreferredSchedule, ...] = ()
 
     @property
     def route_label(self) -> str:
@@ -126,6 +139,7 @@ class LegResult:
     status: LegStatus
     captured_at: datetime
     flights: list[FlightSnapshot] = field(default_factory=list)
+    preferred_matches: list[FlightSnapshot | None] = field(default_factory=list)
     completed_response: bool = False
     observed_count: int = 0
     eligible_count: int = 0

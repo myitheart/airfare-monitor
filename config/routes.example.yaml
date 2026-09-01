@@ -17,6 +17,14 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    # Optional exact schedules to call out separately in every email.
+    preferred_schedules:
+      - label: 出发地 → 到达地
+        departure_time: "07:25"
+        arrival_time: "13:00"
+        arrival_day_offset: 0
+        origin_airport_iata: PVG
+        destination_airport_iata: KUL
 
   - id: leg-2
     enabled: true

@@ -34,6 +34,7 @@ The body should be readable on a phone and contain:
    - difference from threshold;
    - difference from previous run;
    - cheapest three flight numbers with ETD and total prices;
+   - configured preferred schedules with their live total prices, even when outside `top_n`;
    - success, partial, failed or manual-attention status.
 3. A clear reminder that prices are observed listings and must be confirmed in the app.
 

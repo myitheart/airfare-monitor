@@ -6,6 +6,7 @@ import html
 import os
 import smtplib
 import ssl
+from datetime import timedelta
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -23,6 +24,19 @@ def _delta_text(value: object) -> str:
         return "—"
     number = float(value)
     return f"{number:+,.0f}"
+
+
+def _preferred_schedule_text(result: LegResult, index: int) -> str:
+    preferred = result.leg.preferred_schedules[index]
+    arrival_date = result.leg.departure_date + timedelta(days=preferred.arrival_day_offset)
+    schedule = (
+        f"{preferred.label} · {result.leg.departure_date:%m-%d} {preferred.departure_time:%H:%M}"
+        f" → {arrival_date:%m-%d} {preferred.arrival_time:%H:%M}"
+    )
+    flight = result.preferred_matches[index] if index < len(result.preferred_matches) else None
+    if flight is None:
+        return f"{schedule} · 本次未找到匹配直达航班"
+    return f"{schedule} · {flight.flight_codes_display} · {_price(flight.total_price_cny)}"
 
 
 def build_subject(report: RunReport, settings: MailSettings) -> str:
@@ -55,6 +69,10 @@ def _leg_plain(result: LegResult, confirmed: bool) -> list[str]:
     ]
     for flight in result.flights[:3]:
         lines.append(f"- {flight.flight_codes_display} {flight.etd_local:%m-%d %H:%M} {_price(flight.total_price_cny)}")
+    if result.leg.preferred_schedules:
+        lines.append("关注时段（实时含税价）：")
+        for index in range(len(result.leg.preferred_schedules)):
+            lines.append(f"★ {_preferred_schedule_text(result, index)}")
     if result.error_message:
         lines.append(f"错误：{result.error_message}")
     return lines
@@ -86,6 +104,16 @@ def build_message(
             f"<li>{html.escape(flight.flight_codes_display)} · {flight.etd_local:%m-%d %H:%M} · {_price(flight.total_price_cny)}</li>"
             for flight in result.flights[:3]
         ) or "<li>无符合条件的航班</li>"
+        preferred_flights = ""
+        if result.leg.preferred_schedules:
+            preferred_items = "".join(
+                f"<li>{html.escape(_preferred_schedule_text(result, index))}</li>"
+                for index in range(len(result.leg.preferred_schedules))
+            )
+            preferred_flights = (
+                '<div style="margin-top:8px"><b>关注时段（实时含税价）</b>'
+                f'<ul style="padding-left:20px">{preferred_items}</ul></div>'
+            )
         cards.append(
             f"""<section style="border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0">
             <h3 style="margin:0 0 8px">{html.escape(result.leg.id)} · {html.escape(result.leg.route_display)}</h3>
@@ -94,6 +122,7 @@ def build_message(
             <div>与阈值 {_delta_text(threshold_delta)} · 较上次 {_delta_text(previous_delta)}</div>
             <div>状态 {html.escape(str(result.status))} · 确认命中 {'是' if confirmed else '否'}</div>
             <ul style="padding-left:20px">{flights}</ul>
+            {preferred_flights}
             {f'<div style="color:#b00020">{html.escape(result.error_message)}</div>' if result.error_message else ''}
             </section>"""
         )

@@ -17,6 +17,9 @@
 | `adult_count` | yes | Adult passenger count used for pricing |
 | `child_count` | yes | Child passenger count used for pricing |
 | `cabin_class` | yes | Requested cabin class |
+| `preferred_schedules` | no | Exact schedules shown separately with live prices in each email |
+
+Each preferred schedule contains a display `label`, exact departure and arrival times, an `arrival_day_offset`, and optional actual origin/destination airport IATA codes. Preferred matches are selected from the complete eligible response before the cheapest `top_n` slice is applied.
 
 ## Flight snapshot
 

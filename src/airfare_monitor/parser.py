@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
@@ -239,10 +239,11 @@ def _signature(segments: list[Segment]) -> str:
 
 def parse_completed_payload(
     payload: dict[str, Any], leg: LegConfig, captured_at: datetime
-) -> tuple[list[FlightSnapshot], int, int]:
+) -> tuple[list[FlightSnapshot], list[FlightSnapshot | None], int, int]:
     """Parse, filter and rank one completed response.
 
-    Returns retained flights, observed itinerary count and eligible count.
+    Returns top-ranked flights, preferred-schedule matches, observed itinerary
+    count and eligible count.
     """
     if not is_completed_payload(payload):
         raise IncompleteResponseError("响应尚未报告 result.ctrlInfo.completed == true")
@@ -253,7 +254,7 @@ def parse_completed_payload(
         # An explicitly empty final result is valid only when the payload exposes a known empty list.
         known_list = _first(result, "flights", "flightList", "data.flights", "data.flightList", "flightData")
         if known_list == []:
-            return [], 0, 0
+            return [], [None] * len(leg.preferred_schedules), 0, 0
         raise ParseError("完整响应中未找到包含 price.lowTotalPrice 的航班组合")
 
     eligible: list[FlightSnapshot] = []
@@ -368,4 +369,29 @@ def parse_completed_payload(
         unique.setdefault(flight.flight_signature, flight)
     ranked = list(unique.values())
     eligible_count = len(ranked)
-    return ranked[: leg.top_n], len(candidates), eligible_count
+    preferred_matches: list[FlightSnapshot | None] = []
+    for preferred in leg.preferred_schedules:
+        arrival_date = leg.departure_date + timedelta(days=preferred.arrival_day_offset)
+        match = next(
+            (
+                flight
+                for flight in ranked
+                if flight.etd_local.date() == leg.departure_date
+                and (flight.etd_local.hour, flight.etd_local.minute)
+                == (preferred.departure_time.hour, preferred.departure_time.minute)
+                and flight.eta_local.date() == arrival_date
+                and (flight.eta_local.hour, flight.eta_local.minute)
+                == (preferred.arrival_time.hour, preferred.arrival_time.minute)
+                and (
+                    preferred.origin_airport_iata is None
+                    or flight.origin_airport_iata == preferred.origin_airport_iata
+                )
+                and (
+                    preferred.destination_airport_iata is None
+                    or flight.destination_airport_iata == preferred.destination_airport_iata
+                )
+            ),
+            None,
+        )
+        preferred_matches.append(match)
+    return ranked[: leg.top_n], preferred_matches, len(candidates), eligible_count

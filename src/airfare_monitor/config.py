@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 from .errors import ConfigError
-from .models import EtdWindow, LegConfig
+from .models import EtdWindow, LegConfig, PreferredSchedule
 
 _IATA_RE = re.compile(r"^[A-Z]{3}$")
 _CABIN_CLASSES = {"economy", "premium_economy", "business", "first"}
@@ -216,6 +216,44 @@ def load_routes(path: str | Path) -> list[LegConfig]:
         if cabin not in _CABIN_CLASSES:
             raise ConfigError(f"{prefix}.cabin_class 不受支持：{cabin}")
 
+        raw_preferred = item.get("preferred_schedules", [])
+        if not isinstance(raw_preferred, list):
+            raise ConfigError(f"{prefix}.preferred_schedules 必须是列表")
+        preferred_schedules: list[PreferredSchedule] = []
+        for preferred_index, raw_preference in enumerate(raw_preferred, start=1):
+            preferred_prefix = f"{prefix}.preferred_schedules[{preferred_index}]"
+            preference = _mapping(raw_preference, preferred_prefix)
+
+            def optional_iata(key: str) -> str | None:
+                raw_value = preference.get(key)
+                if raw_value is None:
+                    return None
+                value = _string(raw_value, f"{preferred_prefix}.{key}").upper()
+                if not _IATA_RE.fullmatch(value):
+                    raise ConfigError(f"{preferred_prefix}.{key} 必须是三个英文字母")
+                return value
+
+            preferred_schedules.append(
+                PreferredSchedule(
+                    label=_string(_required(preference, "label", preferred_prefix), f"{preferred_prefix}.label"),
+                    departure_time=_parse_time(
+                        _required(preference, "departure_time", preferred_prefix),
+                        f"{preferred_prefix}.departure_time",
+                    ),
+                    arrival_time=_parse_time(
+                        _required(preference, "arrival_time", preferred_prefix),
+                        f"{preferred_prefix}.arrival_time",
+                    ),
+                    arrival_day_offset=_positive_int(
+                        preference.get("arrival_day_offset", 0),
+                        f"{preferred_prefix}.arrival_day_offset",
+                        allow_zero=True,
+                    ),
+                    origin_airport_iata=optional_iata("origin_airport_iata"),
+                    destination_airport_iata=optional_iata("destination_airport_iata"),
+                )
+            )
+
         legs.append(
             LegConfig(
                 id=leg_id,
@@ -247,6 +285,7 @@ def load_routes(path: str | Path) -> list[LegConfig]:
                     if item.get("destination_name_zh") is not None
                     else None
                 ),
+                preferred_schedules=tuple(preferred_schedules),
             )
         )
     if not any(leg.enabled for leg in legs):

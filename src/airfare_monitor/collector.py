@@ -186,12 +186,15 @@ class QunarBrowserSession:
                     break
                 last_payload = payload
                 if is_completed_payload(payload):
-                    flights, observed_count, eligible_count = parse_completed_payload(payload, leg, captured_at)
+                    flights, preferred_matches, observed_count, eligible_count = parse_completed_payload(
+                        payload, leg, captured_at
+                    )
                     return LegResult(
                         leg=leg,
                         status=LegStatus.SUCCESS,
                         captured_at=captured_at,
                         flights=flights,
+                        preferred_matches=preferred_matches,
                         completed_response=True,
                         observed_count=observed_count,
                         eligible_count=eligible_count,

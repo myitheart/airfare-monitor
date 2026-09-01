@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import copy
 import unittest
+from dataclasses import replace
 from datetime import date, datetime, time
 from decimal import Decimal
 
 from airfare_monitor.errors import IncompleteResponseError
-from airfare_monitor.models import EtdWindow, LegConfig
+from airfare_monitor.models import EtdWindow, LegConfig, PreferredSchedule
 from airfare_monitor.parser import parse_completed_payload
 
 
@@ -74,17 +75,18 @@ class ParserTests(unittest.TestCase):
             parse_completed_payload(value, leg(), datetime(2026, 8, 31, 12))
 
     def test_filters_connections_and_sorts_by_total(self):
-        flights, observed, eligible = parse_completed_payload(payload(), leg(), datetime(2026, 8, 31, 12))
+        flights, preferred, observed, eligible = parse_completed_payload(payload(), leg(), datetime(2026, 8, 31, 12))
         self.assertEqual(observed, 3)
         self.assertEqual(eligible, 2)
+        self.assertEqual(preferred, [])
         self.assertEqual([item.total_price_cny for item in flights], [Decimal("800"), Decimal("880")])
         self.assertTrue(all(item.segment_count == 1 for item in flights))
 
     def test_signature_changes_when_schedule_changes(self):
-        first, _, _ = parse_completed_payload(payload(), leg(), datetime(2026, 8, 31, 12))
+        first, _, _, _ = parse_completed_payload(payload(), leg(), datetime(2026, 8, 31, 12))
         changed = copy.deepcopy(payload())
         changed["result"]["flightList"][1]["flightSegments"][0]["departureDateTime"] = "2026-09-27 09:10"
-        second, _, _ = parse_completed_payload(changed, leg(), datetime(2026, 8, 31, 12))
+        second, _, _, _ = parse_completed_payload(changed, leg(), datetime(2026, 8, 31, 12))
         self.assertNotEqual(first[0].flight_signature, second[0].flight_signature)
 
     def test_deduplicates_same_itinerary_and_keeps_cheapest_offer(self):
@@ -92,7 +94,7 @@ class ParserTests(unittest.TestCase):
         duplicate = copy.deepcopy(value["result"]["flightList"][0])
         duplicate["price"]["lowTotalPrice"] = 850
         value["result"]["flightList"].append(duplicate)
-        flights, observed, eligible = parse_completed_payload(value, leg(), datetime(2026, 8, 31, 12))
+        flights, _, observed, eligible = parse_completed_payload(value, leg(), datetime(2026, 8, 31, 12))
         self.assertEqual(observed, 4)
         self.assertEqual(eligible, 2)
         self.assertEqual([flight.total_price_cny for flight in flights], [Decimal("800"), Decimal("850")])
@@ -138,8 +140,50 @@ class ParserTests(unittest.TestCase):
                 },
             }
         }
-        flights, observed, eligible = parse_completed_payload(actual_shape, leg(), datetime(2026, 8, 31, 12))
+        flights, _, observed, eligible = parse_completed_payload(actual_shape, leg(), datetime(2026, 8, 31, 12))
         self.assertEqual((observed, eligible), (1, 1))
         self.assertEqual(flights[0].origin_airport_iata, "PVG")
         self.assertEqual(flights[0].total_price_cny, Decimal("1450"))
         self.assertEqual(flights[0].remaining_seats, "9")
+
+    def test_retains_preferred_schedule_outside_top_n(self):
+        preference = PreferredSchedule(
+            label="上海 → 吉隆坡",
+            departure_time=time(10),
+            arrival_time=time(15, 30),
+            origin_airport_iata="SHA",
+            destination_airport_iata="KUL",
+        )
+        configured = replace(leg(), top_n=1, preferred_schedules=(preference,))
+        flights, preferred, _, eligible = parse_completed_payload(
+            payload(), configured, datetime(2026, 8, 31, 12)
+        )
+        self.assertEqual(eligible, 2)
+        self.assertEqual([flight.total_price_cny for flight in flights], [Decimal("800")])
+        self.assertIsNotNone(preferred[0])
+        self.assertEqual(preferred[0].total_price_cny, Decimal("880"))
+
+    def test_matches_preferred_schedule_arriving_next_day(self):
+        value = payload()
+        value["result"]["flightList"] = [
+            {
+                "flightSegments": [
+                    segment("MU789", "SHA", "KUL", "2026-09-27 22:30", "2026-09-28 03:00")
+                ],
+                "price": {"lowTotalPrice": 900, "currencyCode": "CNY"},
+            }
+        ]
+        preference = PreferredSchedule(
+            label="上海 → 吉隆坡",
+            departure_time=time(22, 30),
+            arrival_time=time(3),
+            arrival_day_offset=1,
+        )
+        configured = replace(
+            leg(),
+            etd_window=EtdWindow(time(0), time(23, 59)),
+            preferred_schedules=(preference,),
+        )
+        _, preferred, _, _ = parse_completed_payload(value, configured, datetime(2026, 8, 31, 12))
+        self.assertIsNotNone(preferred[0])
+        self.assertEqual(preferred[0].eta_local, datetime(2026, 9, 28, 3))

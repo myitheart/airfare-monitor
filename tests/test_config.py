@@ -25,6 +25,13 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+    preferred_schedules:
+      - label: 上海浦东 → 吉隆坡
+        departure_time: '07:25'
+        arrival_time: '13:00'
+        arrival_day_offset: 0
+        origin_airport_iata: PVG
+        destination_airport_iata: KUL
 """
 
 
@@ -40,6 +47,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(legs[0].origin_airport_iata, "SHA")
         self.assertEqual(legs[0].etd_window.display(), "08:00-18:00")
         self.assertEqual(legs[0].route_display, "上海（SHA） → 吉隆坡（KUL）")
+        self.assertEqual(legs[0].preferred_schedules[0].label, "上海浦东 → 吉隆坡")
+        self.assertEqual(legs[0].preferred_schedules[0].departure_time.strftime("%H:%M"), "07:25")
 
     def test_rejects_date_in_etd_window(self):
         with self.assertRaisesRegex(ConfigError, "HH:MM"):

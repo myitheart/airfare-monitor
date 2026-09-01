@@ -116,6 +116,15 @@ legs:
     adult_count: 1
     child_count: 0
     cabin_class: economy
+
+    # 可选：在邮件中单独展示某个关注时刻的实时价格
+    preferred_schedules:
+      - label: 上海浦东 → 吉隆坡
+        departure_time: "07:25"
+        arrival_time: "13:00"
+        arrival_day_offset: 0
+        origin_airport_iata: PVG
+        destination_airport_iata: KUL
 ```
 
 `legs` 是非空列表，没有固定为 4 程。可以继续复制航程块并使用唯一的 `id` 添加 `leg-5`、`leg-6` 等，也可以用 `enabled: false` 临时停用某一程。邮件、Excel 和历史记录会根据本次实际启用的航程数量动态生成。
@@ -138,6 +147,20 @@ legs:
 | `adult_count` | 成人数量，至少为 1 |
 | `child_count` | 儿童数量，可以为 0 |
 | `cabin_class` | `economy`、`premium_economy`、`business` 或 `first` |
+| `preferred_schedules` | 可选关注时刻列表；邮件会在最低价 3 条之外展示匹配航班的实时含税价 |
+
+每个 `preferred_schedules` 项使用以下字段：
+
+| 字段 | 说明 |
+|---|---|
+| `label` | 邮件中显示的自定义航线名称 |
+| `departure_time` | 精确计划起飞时间，格式 `HH:MM` |
+| `arrival_time` | 精确计划到达时间，格式 `HH:MM` |
+| `arrival_day_offset` | 到达日相对出发日的天数；当天为 `0`，次日为 `1` |
+| `origin_airport_iata` | 可选的实际起飞机场，用于在城市代码搜索结果中精确匹配机场 |
+| `destination_airport_iata` | 可选的实际到达机场 |
+
+关注航班按机场、日期、ETD 和 ETA 精确匹配。即使其价格没有进入最低价前 `top_n`，邮件仍会单独展示；本轮没有匹配航班时会显示“本次未找到匹配直达航班”。配置中的关注时刻不会改变心理价位，也不会直接触发低价命中。
 
 全天监控可使用：
 
@@ -381,7 +404,7 @@ data/browser-profile/
 [低价命中][命中数/N程] 上海（SHA） → 吉隆坡（KUL） ¥980 ≤ ¥1,000 | YYYY-MM-DD HH:mm
 ```
 
-部分航程失败时，主题包含 `[部分失败]`。邮件正文使用“中文名（IATA）”显示航程，并列出每程最低价、心理价位、与上次变化及最便宜的三个航班。价格和库存仍需在 App 中最终确认。
+部分航程失败时，主题包含 `[部分失败]`。邮件正文使用“中文名（IATA）”显示航程，并列出每程最低价、心理价位、与上次变化、最便宜的三个航班，以及配置的关注时刻实时含税价。价格和库存仍需在 App 中最终确认。
 
 ## 九、常见问题
 
