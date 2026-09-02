@@ -47,10 +47,13 @@ def _summary_sheet(workbook: Workbook, report: RunReport) -> None:
     sheet.title = "本次汇总"
     headers = [
         "航程",
+        "行程类型",
         "出发地",
         "到达地",
-        "出发日期",
-        "ETD时间窗",
+        "去程日期",
+        "去程ETD时间窗",
+        "返程日期",
+        "返程ETD时间窗",
         "心理价位",
         "本次最低总价",
         "与阈值差额",
@@ -66,10 +69,13 @@ def _summary_sheet(workbook: Workbook, report: RunReport) -> None:
         minimum = result.minimum_total_cny
         row = [
             result.leg.id,
+            "往返" if result.leg.is_round_trip else "单程",
             result.leg.origin_display,
             result.leg.destination_display,
             result.leg.departure_date,
             result.leg.etd_window.display(),
+            result.leg.return_date,
+            result.leg.return_etd_window.display() if result.leg.return_etd_window else None,
             _money(result.leg.expected_total_price_cny),
             _money(minimum),
             _money(_delta(minimum, result.leg.expected_total_price_cny)),
@@ -82,10 +88,11 @@ def _summary_sheet(workbook: Workbook, report: RunReport) -> None:
         ]
         sheet.append(row)
         row_number = sheet.max_row
-        for column in (6, 7, 8, 9):
+        for column in (9, 10, 11, 12):
             sheet.cell(row_number, column).number_format = _CURRENCY_FORMAT
-        sheet.cell(row_number, 4).number_format = "yyyy-mm-dd"
-        sheet.cell(row_number, 13).number_format = "yyyy-mm-dd hh:mm"
+        sheet.cell(row_number, 5).number_format = "yyyy-mm-dd"
+        sheet.cell(row_number, 7).number_format = "yyyy-mm-dd"
+        sheet.cell(row_number, 16).number_format = "yyyy-mm-dd hh:mm"
         fill = _HIT_FILL if result.leg.id in report.threshold_confirmed_leg_ids else None
         if str(result.status) != "success":
             fill = _FAIL_FILL
@@ -107,6 +114,10 @@ def _leg_sheet(workbook: Workbook, result: LegResult, index: int) -> None:
         "ETD",
         "ETA",
         "飞行时长(分钟)",
+        "航段数",
+        "行程类型",
+        "中转机场",
+        "中转等待(分钟)",
         "基础票价",
         "税费",
         "总价",
@@ -116,10 +127,25 @@ def _leg_sheet(workbook: Workbook, result: LegResult, index: int) -> None:
         "免费行李重量",
         "报价来源",
         "采集时间",
+        "返程航班号",
+        "返程航司",
+        "返程出发机场",
+        "返程到达机场",
+        "返程日期",
+        "返程ETD",
+        "返程ETA",
+        "返程飞行时长(分钟)",
+        "返程航段数",
+        "返程类型",
+        "返程中转机场",
+        "返程中转等待(分钟)",
+        "去程余票提示",
+        "返程余票提示",
         "航班签名",
     ]
     sheet.append(headers)
     for rank, flight in enumerate(result.flights, start=1):
+        inbound = flight.return_itinerary
         sheet.append(
             [
                 rank,
@@ -131,42 +157,75 @@ def _leg_sheet(workbook: Workbook, result: LegResult, index: int) -> None:
                 flight.etd_local,
                 flight.eta_local,
                 flight.duration_minutes,
+                flight.segment_count,
+                "直达" if flight.is_direct else f"中转{flight.segment_count - 1}次",
+                flight.connection_airports_display,
+                flight.layover_minutes,
                 _money(flight.base_price_cny),
                 _money(flight.tax_cny),
                 _money(flight.total_price_cny),
                 flight.currency_code,
-                flight.remaining_seats,
+                (
+                    flight.seat_availability.display()
+                    if flight.seat_availability
+                    else flight.remaining_seats
+                ),
                 flight.free_baggage_piece,
                 flight.free_baggage_weight,
                 flight.source_domain,
                 flight.captured_at,
+                inbound.flight_codes_display if inbound else None,
+                inbound.carrier_codes_display if inbound else None,
+                inbound.origin_airport_iata if inbound else None,
+                inbound.destination_airport_iata if inbound else None,
+                inbound.departure_date if inbound else None,
+                inbound.etd_local if inbound else None,
+                inbound.eta_local if inbound else None,
+                inbound.duration_minutes if inbound else None,
+                inbound.segment_count if inbound else None,
+                ("直达" if inbound.is_direct else f"中转{inbound.segment_count - 1}次") if inbound else None,
+                inbound.connection_airports_display if inbound else None,
+                inbound.layover_minutes if inbound else None,
+                (
+                    flight.outbound_seat_availability.display()
+                    if flight.outbound_seat_availability
+                    else flight.remaining_seats
+                ),
+                (
+                    inbound.seat_availability.display()
+                    if inbound and inbound.seat_availability
+                    else None
+                ),
                 flight.flight_signature,
             ]
         )
-        for column in (10, 11, 12):
+        for column in (14, 15, 16):
             sheet.cell(sheet.max_row, column).number_format = _CURRENCY_FORMAT
-        for column in (6, 7, 8, 18):
+        for column in (6, 7, 8, 22, 27, 28, 29):
             sheet.cell(sheet.max_row, column).number_format = "yyyy-mm-dd hh:mm"
     _style_sheet(sheet)
-    sheet.column_dimensions["S"].hidden = True
+    sheet.column_dimensions[get_column_letter(len(headers))].hidden = True
 
 
 def _history_sheet(workbook: Workbook, history: list[dict[str, Any]]) -> None:
     sheet = workbook.create_sheet("24小时历史")
-    sheet.append(["航程", "航线", "采集时间", "最低总价", "采集状态"])
+    sheet.append(["航程", "类型", "航线", "采集时间", "最低总价", "采集状态"])
     for item in history:
         value = item.get("minimum_total_price_cny")
+        is_round_trip = bool(item.get("return_date"))
+        arrow = "↔" if is_round_trip else "-"
         sheet.append(
             [
                 item["leg_id"],
-                f'{item["origin_airport_iata"]}-{item["destination_airport_iata"]}',
+                "往返" if is_round_trip else "单程",
+                f'{item["origin_airport_iata"]}{arrow}{item["destination_airport_iata"]}',
                 datetime.fromisoformat(item["captured_at"]),
                 float(value) if value is not None else None,
                 item["status"],
             ]
         )
-        sheet.cell(sheet.max_row, 3).number_format = "yyyy-mm-dd hh:mm"
-        sheet.cell(sheet.max_row, 4).number_format = _CURRENCY_FORMAT
+        sheet.cell(sheet.max_row, 4).number_format = "yyyy-mm-dd hh:mm"
+        sheet.cell(sheet.max_row, 5).number_format = _CURRENCY_FORMAT
     _style_sheet(sheet)
 
 def generate_workbook(report: RunReport, history: list[dict[str, Any]], output_directory: str | Path) -> Path:

@@ -15,6 +15,8 @@ browser:
   # Keep this page URL configurable: Qunar's anonymous page flow can change.
   # The page must trigger /touch/api/inter/wwwsearch by normal browser behavior.
   search_url_template: "https://flight.qunar.com/site/oneway_list_inter.htm"
+  # 往返结果页会由 Chromium 正常生成 Bella、queryId 和匿名 Cookie。
+  roundtrip_search_url_template: "https://flight.qunar.com/site/interroundtrip_compare.htm?fromCity={origin_name}&toCity={destination_name}&fromDate={date}&toDate={return_date}&fromCode={origin}&toCode={destination}&from=flight_dom_search&lowestPrice=null&isInter=true&favoriteKey=&showTotalPr=null&adultNum={adult_count}&childNum={child_count}&cabinClass={cabin_class}"
   # Tongcheng domestic result page used to load its recorded search form.
   tongcheng_search_url_template: "https://www.ly.com/flights/itinerary/oneway/{origin}-{destination}?date={date}&from={origin_name}&to={destination_name}&fromairport=&toairport=&p=&childticket=0,0"
 

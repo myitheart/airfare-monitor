@@ -127,6 +127,29 @@ class MonitorService:
                 references.append(reference)
             result.preferred_price_references = references
 
+    def _attach_flight_price_references(self, results: list[LegResult], *, before: datetime) -> None:
+        for result in results:
+            references: dict[str, PreferredPriceReference] = {}
+            candidates = list(result.flights)
+            candidates.extend(flight for flight in result.preferred_matches if flight is not None)
+            for flight in candidates:
+                if flight.flight_signature in references:
+                    continue
+                reference = self.store.flight_price_reference(
+                    result.leg.id,
+                    flight.flight_signature,
+                    before=before,
+                )
+                if reference.first_total_price_cny is None:
+                    reference = PreferredPriceReference(
+                        first_total_price_cny=flight.total_price_cny,
+                        first_captured_at=result.captured_at,
+                        previous_total_price_cny=reference.previous_total_price_cny,
+                        previous_captured_at=reference.previous_captured_at,
+                    )
+                references[flight.flight_signature] = reference
+            result.flight_price_references = references
+
     def run_once(self, *, send_email: bool = False) -> tuple[RunReport, object]:
         if not self.legs:
             raise ValueError("没有启用的航程")
@@ -142,6 +165,7 @@ class MonitorService:
 
         confirmed_ids = self._confirm_thresholds(results)
         self._attach_preferred_price_references(results, before=started_at)
+        self._attach_flight_price_references(results, before=started_at)
         report = RunReport(
             run_id=run_id,
             started_at=started_at,

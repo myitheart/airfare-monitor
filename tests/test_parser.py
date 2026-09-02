@@ -74,6 +74,13 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(IncompleteResponseError):
             parse_completed_payload(value, leg(), datetime(2026, 8, 31, 12))
 
+    def test_accepts_completed_empty_flight_prices(self):
+        value = {"result": {"ctrlInfo": {"completed": True}, "flightPrices": {}}}
+        flights, preferred, observed, eligible = parse_completed_payload(
+            value, leg(), datetime(2026, 8, 31, 12)
+        )
+        self.assertEqual((flights, preferred, observed, eligible), ([], [], 0, 0))
+
     def test_filters_connections_and_sorts_by_total(self):
         flights, preferred, observed, eligible = parse_completed_payload(payload(), leg(), datetime(2026, 8, 31, 12))
         self.assertEqual(observed, 3)
@@ -81,6 +88,26 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(preferred, [])
         self.assertEqual([item.total_price_cny for item in flights], [Decimal("800"), Decimal("880")])
         self.assertTrue(all(item.segment_count == 1 for item in flights))
+
+    def test_includes_connection_within_configured_total_layover(self):
+        configured = replace(leg(), direct_only=False, max_layover_minutes=120)
+        flights, _, observed, eligible = parse_completed_payload(
+            payload(), configured, datetime(2026, 8, 31, 12)
+        )
+        self.assertEqual((observed, eligible), (3, 3))
+        self.assertEqual(flights[0].total_price_cny, Decimal("400"))
+        self.assertEqual(flights[0].flight_codes, ("MU100", "CZ200"))
+        self.assertEqual(flights[0].connection_airports, ("CAN",))
+        self.assertEqual(flights[0].layover_minutes, 120)
+        self.assertFalse(flights[0].is_direct)
+
+    def test_filters_connection_exceeding_total_layover_limit(self):
+        configured = replace(leg(), direct_only=False, max_layover_minutes=119)
+        flights, _, _, eligible = parse_completed_payload(
+            payload(), configured, datetime(2026, 8, 31, 12)
+        )
+        self.assertEqual(eligible, 2)
+        self.assertTrue(all(item.is_direct for item in flights))
 
     def test_signature_changes_when_schedule_changes(self):
         first, _, _, _ = parse_completed_payload(payload(), leg(), datetime(2026, 8, 31, 12))
@@ -109,7 +136,7 @@ class ParserTests(unittest.TestCase):
                             "depCityCode": "SHA",
                             "arrCityCode": "KUL",
                             "duration": 350,
-                            "seatInfo": {"nums": 9},
+                            "seatInfo": {"nums": 9, "showOTxt": "", "showLTxt": ""},
                             "trips": [
                                 {
                                     "flightSegments": [
@@ -145,6 +172,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(flights[0].origin_airport_iata, "PVG")
         self.assertEqual(flights[0].total_price_cny, Decimal("1450"))
         self.assertEqual(flights[0].remaining_seats, "9")
+        self.assertEqual(flights[0].seat_availability.display(), "9张或以上（平台提示）")
 
     def test_retains_preferred_schedule_outside_top_n(self):
         preference = PreferredSchedule(
@@ -201,3 +229,80 @@ class ParserTests(unittest.TestCase):
         self.assertIsNotNone(preferred[0])
         self.assertEqual(preferred[0].flight_codes, ("MU123",))
         self.assertEqual(preferred[0].total_price_cny, Decimal("880"))
+
+    def test_parses_round_trip_combination_total_and_both_directions(self):
+        configured = replace(
+            leg(),
+            expected_total_price_cny=None,
+            return_date=date(2026, 10, 3),
+            return_etd_window=EtdWindow(time(12), time(23, 59)),
+            return_direct_only=True,
+        )
+        value = {
+            "result": {
+                "ctrlInfo": {"completed": True},
+                "flightPrices": {
+                    "MU001_MU002": {
+                        "journey": {
+                            "journeyType": "ROUNDTRIP",
+                            "depCityCode": "SHA",
+                            "arrCityCode": "KUL",
+                            "seatInfo": {"nums": 2, "showOTxt": "2张", "showLTxt": "票少"},
+                            "ticketInsufficient": False,
+                            "trips": [
+                                {
+                                    "depCityCode": "SHA",
+                                    "arrCityCode": "KUL",
+                                    "duration": 330,
+                                    "seatInfo": {"nums": 9, "showOTxt": "", "showLTxt": ""},
+                                    "flightSegments": [
+                                        segment("MU001", "PVG", "KUL", "2026-09-27 08:00", "2026-09-27 13:30")
+                                    ],
+                                },
+                                {
+                                    "depCityCode": "KUL",
+                                    "arrCityCode": "SHA",
+                                    "duration": 320,
+                                    "seatInfo": {"nums": 2, "showOTxt": "2张", "showLTxt": "票少"},
+                                    "flightSegments": [
+                                        segment("MU002", "KUL", "PVG", "2026-10-03 14:00", "2026-10-03 19:20")
+                                    ],
+                                },
+                            ],
+                        },
+                        "price": {
+                            "lowPrice": 1200,
+                            "tax": 600,
+                            "lowTotalPrice": 1800,
+                            "currencyCode": "CNY",
+                        },
+                    }
+                },
+            }
+        }
+        flights, _, observed, eligible = parse_completed_payload(
+            value, configured, datetime(2026, 9, 2, 10)
+        )
+        self.assertEqual((observed, eligible), (1, 1))
+        self.assertEqual(flights[0].total_price_cny, Decimal("1800"))
+        self.assertEqual(flights[0].flight_codes, ("MU001",))
+        self.assertIsNotNone(flights[0].return_itinerary)
+        self.assertEqual(flights[0].return_itinerary.flight_codes, ("MU002",))
+        self.assertEqual(flights[0].return_itinerary.destination_airport_iata, "PVG")
+        self.assertEqual(flights[0].seat_availability.display(), "2张（票少）")
+        self.assertEqual(
+            flights[0].outbound_seat_availability.display(), "9张或以上（平台提示）"
+        )
+        self.assertEqual(flights[0].return_itinerary.seat_availability.display(), "2张（票少）")
+
+        outside_window = copy.deepcopy(value)
+        return_segment = outside_window["result"]["flightPrices"]["MU001_MU002"]["journey"]["trips"][1][
+            "flightSegments"
+        ][0]
+        return_segment["departureDateTime"] = "2026-10-03 10:00"
+        return_segment["arrivalDateTime"] = "2026-10-03 15:20"
+        filtered, _, _, filtered_count = parse_completed_payload(
+            outside_window, configured, datetime(2026, 9, 2, 10)
+        )
+        self.assertEqual(filtered_count, 0)
+        self.assertEqual(filtered, [])

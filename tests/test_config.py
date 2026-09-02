@@ -56,6 +56,51 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(legs[0].preferred_schedules[0].arrival_tolerance_minutes, 60)
         self.assertEqual(legs[0].market, "auto")
 
+    def test_loads_transfer_limit_and_observation_only_threshold(self):
+        value = VALID.replace("direct_only: true", "direct_only: false\n    max_layover_minutes: 240")
+        value = value.replace("expected_total_price_cny: 1000", "expected_total_price_cny: null")
+        legs = self._load(value)
+        self.assertFalse(legs[0].direct_only)
+        self.assertEqual(legs[0].max_layover_minutes, 240)
+        self.assertIsNone(legs[0].expected_total_price_cny)
+
+    def test_rejects_missing_threshold_field_but_allows_explicit_null(self):
+        missing = VALID.replace("    expected_total_price_cny: 1000\n", "")
+        with self.assertRaisesRegex(ConfigError, "expected_total_price_cny"):
+            self._load(missing)
+
+    def test_rejects_non_positive_layover_limit(self):
+        value = VALID.replace("direct_only: true", "direct_only: false\n    max_layover_minutes: 0")
+        with self.assertRaisesRegex(ConfigError, "max_layover_minutes"):
+            self._load(value)
+
+    def test_loads_round_trip_dates_and_independent_return_filters(self):
+        value = VALID.replace(
+            "    expected_total_price_cny: 1000",
+            "    return_date: '2026-10-03'\n"
+            "    return_etd_window: {start: '12:00', end: '23:59'}\n"
+            "    return_direct_only: false\n"
+            "    return_max_layover_minutes: 240\n"
+            "    expected_total_price_cny: null",
+        )
+        configured = self._load(value)[0]
+        self.assertTrue(configured.is_round_trip)
+        self.assertEqual(configured.return_date.isoformat(), "2026-10-03")
+        self.assertEqual(configured.return_etd_window.display(), "12:00-23:59")
+        self.assertFalse(configured.return_direct_only)
+        self.assertEqual(configured.return_max_layover_minutes, 240)
+        self.assertEqual(configured.route_display, "上海（SHA） ↔ 吉隆坡（KUL）")
+
+    def test_rejects_return_date_not_after_departure(self):
+        value = VALID.replace(
+            "    expected_total_price_cny: 1000",
+            "    return_date: '2026-09-27'\n"
+            "    return_etd_window: {start: '00:00', end: '23:59'}\n"
+            "    expected_total_price_cny: 1000",
+        )
+        with self.assertRaisesRegex(ConfigError, "return_date"):
+            self._load(value)
+
     def test_rejects_date_in_etd_window(self):
         with self.assertRaisesRegex(ConfigError, "HH:MM"):
             self._load(VALID.replace("start: '08:00'", "start: '2026-09-27'"))

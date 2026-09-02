@@ -35,7 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     legs = load_routes(args.routes)
     settings = load_settings(args.settings, project_root=project_root)
     if args.command == "validate":
-        print(f"配置有效：{sum(leg.enabled for leg in legs)} 个启用航程")
+        enabled = [leg for leg in legs if leg.enabled]
+        round_trips = sum(leg.is_round_trip for leg in enabled)
+        print(f"配置有效：{len(enabled)} 个启用行程，其中 {round_trips} 组往返")
         return 0
 
     service = MonitorService(legs, settings)

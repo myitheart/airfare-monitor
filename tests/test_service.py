@@ -24,6 +24,7 @@ from airfare_monitor.models import (
     LegResult,
     LegStatus,
     PreferredSchedule,
+    RunReport,
     RunStatus,
 )
 from airfare_monitor.service import MonitorService
@@ -124,3 +125,61 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(reference.first_total_price_cny, Decimal("1060"))
             self.assertEqual(reference.first_captured_at, captured)
             self.assertIsNone(reference.previous_total_price_cny)
+
+    def test_candidate_price_references_use_existing_snapshot_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first_at = datetime(2026, 8, 31, 9)
+            previous_at = datetime(2026, 8, 31, 9, 30)
+            current_at = datetime(2026, 8, 31, 10)
+            flight = FlightSnapshot(
+                "stable-signature",
+                ("MU001",),
+                ("MU",),
+                "SHA",
+                "KUL",
+                route().departure_date,
+                datetime(2026, 9, 27, 7, 25),
+                datetime(2026, 9, 27, 13),
+                335,
+                1,
+                True,
+                Decimal("800"),
+                Decimal("260"),
+                Decimal("1060"),
+                "CNY",
+                None,
+                None,
+                None,
+                None,
+                first_at,
+            )
+            service = MonitorService(
+                [route()],
+                settings(Path(directory)),
+                browser=FakeBrowser(),
+                now=lambda: current_at,
+            )
+            service.store.initialize()
+            first_result = LegResult(route(), LegStatus.SUCCESS, first_at, flights=[flight], completed_response=True)
+            service.store.save_report(
+                RunReport("history-1", first_at, first_at, RunStatus.SUCCESS, [first_result], set())
+            )
+            previous_flight = replace(flight, total_price_cny=Decimal("1030"), captured_at=previous_at)
+            previous_result = LegResult(
+                route(), LegStatus.SUCCESS, previous_at, flights=[previous_flight], completed_response=True
+            )
+            service.store.save_report(
+                RunReport(
+                    "history-2", previous_at, previous_at, RunStatus.SUCCESS, [previous_result], set()
+                )
+            )
+            current_flight = replace(flight, total_price_cny=Decimal("990"), captured_at=current_at)
+            current_result = LegResult(
+                route(), LegStatus.SUCCESS, current_at, flights=[current_flight], completed_response=True
+            )
+            service._attach_flight_price_references([current_result], before=current_at)
+            reference = current_result.flight_price_references["stable-signature"]
+            self.assertEqual(reference.first_total_price_cny, Decimal("1060"))
+            self.assertEqual(reference.first_captured_at, first_at)
+            self.assertEqual(reference.previous_total_price_cny, Decimal("1030"))
+            self.assertEqual(reference.previous_captured_at, previous_at)

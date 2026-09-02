@@ -12,7 +12,12 @@
 | `departure_date` | yes | Local departure date |
 | `etd_window.start/end` | yes | Allowed local scheduled departure-time window |
 | `direct_only` | yes | Whether connecting itineraries are excluded |
-| `expected_total_price_cny` | yes | Psychological total-price threshold |
+| `max_layover_minutes` | no | Maximum summed waiting time between adjacent segments |
+| `return_date` | no | Enables round-trip combination monitoring and sets the return departure date |
+| `return_etd_window.start/end` | round trip | Allowed return departure-time window |
+| `return_direct_only` | no | Return-direction direct-flight filter; defaults to outbound setting |
+| `return_max_layover_minutes` | no | Return-direction summed layover limit; defaults to outbound setting |
+| `expected_total_price_cny` | yes | Psychological total-price threshold; explicit null disables alerts for this leg |
 | `top_n` | yes | Number of cheapest eligible flights retained |
 | `adult_count` | yes | Adult passenger count used for pricing |
 | `child_count` | yes | Child passenger count used for pricing |
@@ -42,16 +47,23 @@ Planned fields:
 | `duration_minutes` | Journey duration |
 | `segment_count` | Number of flight segments |
 | `is_direct` | Derived from `segment_count == 1` |
+| `connection_airports` | Ordered connection-airport IATA codes |
+| `layover_minutes` | Sum of waiting minutes between adjacent segments |
+| `return_itinerary` | Complete return-direction itinerary for a round-trip combination, including its seat hint |
 | `base_price_cny` | Base fare |
 | `tax_cny` | Taxes and fees |
 | `total_price_cny` | Primary comparison and alert value |
 | `remaining_seats` | Displayed seat-availability hint |
+| `seat_availability` | Structured overall hint: count/text, scarcity wording and inventory-review flag |
+| `outbound_seat_availability` | Structured outbound-direction hint |
 | `free_baggage_piece` | Free checked-baggage piece count |
 | `free_baggage_weight` | Free checked-baggage weight |
 | `source_domain` | Quoted supplier/source domain |
 | `captured_at` | Asia/Shanghai capture timestamp |
 
-`flight_signature` must not use only the flight number. It should include all segment flight numbers, segment dates, airports and scheduled times so that cross-day or retimed journeys are not merged incorrectly.
+`flight_signature` must not use only the flight number. It includes all outbound and, for round trips, all return segment flight numbers, dates, airports and scheduled times. Round-trip `total_price_cny` is Qunar's combination total and is never synthesized from two one-way observations.
+
+Seat availability is advisory. In observed Qunar payloads, `journey.seatInfo.nums` is the overall round-trip hint and each `journey.trips[*].seatInfo.nums` is the direction-level hint. The value `9` is treated as a capped platform hint and rendered as “9 or more”, not as an exact count. `ticketInsufficient` is retained as a review warning rather than interpreted as a guaranteed sold-out state.
 
 ## Collection run
 

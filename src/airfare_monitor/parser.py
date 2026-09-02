@@ -10,12 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from dataclasses import replace
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
 from .errors import IncompleteResponseError, ParseError
-from .models import FlightSnapshot, LegConfig, Segment
+from .models import FlightSnapshot, ItinerarySnapshot, LegConfig, SeatAvailability, Segment
 from .ranking import rank_flights
 
 _FLIGHT_CODE_RE = re.compile(r"^([A-Z0-9]{2,3})\s*[- ]?\s*([0-9]{1,4}[A-Z]?)$", re.IGNORECASE)
@@ -66,6 +67,62 @@ def _integer(value: Any) -> int | None:
         return None
     match = re.search(r"\d+", str(value))
     return int(match.group()) if match else None
+
+
+def _seat_availability(item: dict[str, Any]) -> SeatAvailability | None:
+    """Extract Qunar's inventory hints without treating them as guaranteed stock."""
+    count = _integer(
+        _first(
+            item,
+            "seatInfo.nums",
+            "remainingSeats",
+            "seatCount",
+            "seatStatus",
+            "price.seatCount",
+            "journey.seatInfo.nums",
+        )
+    )
+    count_text_value = _first(item, "seatInfo.showOTxt", "journey.seatInfo.showOTxt")
+    scarcity_value = _first(
+        item,
+        "seatInfo.showLTxt",
+        "seatInfo.otaText",
+        "seatInfo.listText",
+        "journey.seatInfo.showLTxt",
+        "journey.seatInfo.otaText",
+        "journey.seatInfo.listText",
+    )
+    insufficient_value = _first(item, "ticketInsufficient", "journey.ticketInsufficient")
+    insufficient = insufficient_value if isinstance(insufficient_value, bool) else None
+    if insufficient is None:
+        raw_segments: list[dict[str, Any]] = []
+        direct_segments = item.get("flightSegments")
+        if isinstance(direct_segments, list):
+            raw_segments.extend(segment for segment in direct_segments if isinstance(segment, dict))
+        journeys = _first(item, "journey.trips")
+        if isinstance(journeys, list):
+            raw_segments.extend(
+                segment
+                for trip in journeys
+                if isinstance(trip, dict)
+                for segment in trip.get("flightSegments", [])
+                if isinstance(segment, dict)
+            )
+        flags = [segment.get("ticketInsufficient") for segment in raw_segments]
+        if any(flag is True for flag in flags):
+            insufficient = True
+        elif any(flag is False for flag in flags):
+            insufficient = False
+    count_text = str(count_text_value).strip() if count_text_value not in (None, "") else None
+    scarcity_text = str(scarcity_value).strip() if scarcity_value not in (None, "") else None
+    if count is None and count_text is None and scarcity_text is None and insufficient is None:
+        return None
+    return SeatAvailability(
+        count_hint=count,
+        count_text=count_text,
+        scarcity_text=scarcity_text,
+        ticket_insufficient=insufficient,
+    )
 
 
 def _iata(value: Any, field: str) -> str:
@@ -238,6 +295,92 @@ def _signature(segments: list[Segment]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _return_leg_config(leg: LegConfig) -> LegConfig:
+    if leg.return_date is None or leg.return_etd_window is None:
+        raise ParseError("往返配置缺少返程日期或 ETD 时间窗")
+    return replace(
+        leg,
+        origin_airport_iata=leg.destination_airport_iata,
+        destination_airport_iata=leg.origin_airport_iata,
+        departure_date=leg.return_date,
+        etd_window=leg.return_etd_window,
+        direct_only=leg.return_direct_only if leg.return_direct_only is not None else leg.direct_only,
+        max_layover_minutes=leg.return_max_layover_minutes,
+        preferred_schedules=(),
+        return_date=None,
+        return_etd_window=None,
+        return_direct_only=None,
+        return_max_layover_minutes=None,
+    )
+
+
+def _eligible_itinerary(
+    item: dict[str, Any], leg: LegConfig
+) -> tuple[list[Segment], int | None, int | None, SeatAvailability | None] | None:
+    segments = [_parse_segment(raw, leg) for raw in _segment_dicts(item)]
+    search_origin = str(
+        _first(item, "depCityCode", "journey.depCityCode", default=segments[0].origin_airport_iata)
+    ).upper()
+    search_destination = str(
+        _first(item, "arrCityCode", "journey.arrCityCode", default=segments[-1].destination_airport_iata)
+    ).upper()
+    if search_origin != leg.origin_airport_iata or search_destination != leg.destination_airport_iata:
+        return None
+    if segments[0].etd_local.date() != leg.departure_date:
+        return None
+    if not leg.etd_window.contains(segments[0].etd_local.time()):
+        return None
+    if leg.direct_only and len(segments) != 1:
+        return None
+
+    layovers: list[int] = []
+    for current, following in zip(segments, segments[1:]):
+        if current.destination_airport_iata != following.origin_airport_iata:
+            raise ParseError(
+                f"相邻航段机场不连续：{current.destination_airport_iata} != {following.origin_airport_iata}"
+            )
+        layover = int((following.etd_local - current.eta_local).total_seconds() // 60)
+        if layover < 0:
+            raise ParseError("中转航段时间重叠或顺序错误")
+        layovers.append(layover)
+    total_layover = sum(layovers) if layovers else None
+    if (
+        leg.max_layover_minutes is not None
+        and total_layover is not None
+        and total_layover > leg.max_layover_minutes
+    ):
+        return None
+
+    duration = _integer(_first(item, "durationMinutes", "duration", "flightDuration", "journey.duration"))
+    if duration is None:
+        duration = int((segments[-1].eta_local - segments[0].etd_local).total_seconds() // 60)
+    return segments, total_layover, duration, _seat_availability(item)
+
+
+def _itinerary_snapshot(
+    segments: list[Segment],
+    layover_minutes: int | None,
+    duration_minutes: int | None,
+    seat_availability: SeatAvailability | None,
+) -> ItinerarySnapshot:
+    return ItinerarySnapshot(
+        flight_signature=_signature(segments),
+        flight_codes=tuple(segment.flight_code for segment in segments),
+        carrier_codes=tuple(dict.fromkeys(segment.carrier_code for segment in segments)),
+        origin_airport_iata=segments[0].origin_airport_iata,
+        destination_airport_iata=segments[-1].destination_airport_iata,
+        departure_date=segments[0].etd_local.date(),
+        etd_local=segments[0].etd_local,
+        eta_local=segments[-1].eta_local,
+        duration_minutes=duration_minutes,
+        segment_count=len(segments),
+        is_direct=len(segments) == 1,
+        connection_airports=tuple(segment.destination_airport_iata for segment in segments[:-1]),
+        layover_minutes=layover_minutes,
+        seat_availability=seat_availability,
+    )
+
+
 def parse_completed_payload(
     payload: dict[str, Any], leg: LegConfig, captured_at: datetime
 ) -> tuple[list[FlightSnapshot], list[FlightSnapshot | None], int, int]:
@@ -250,9 +393,15 @@ def parse_completed_payload(
         raise IncompleteResponseError("响应尚未报告 result.ctrlInfo.completed == true")
 
     result = payload["result"]
-    candidates = list(_walk_itineraries(result))
+    flight_prices = result.get("flightPrices")
+    if isinstance(flight_prices, dict):
+        candidates = [item for item in flight_prices.values() if isinstance(item, dict) and _looks_like_itinerary(item)]
+    else:
+        candidates = list(_walk_itineraries(result))
     if not candidates:
         # An explicitly empty final result is valid only when the payload exposes a known empty list.
+        if isinstance(flight_prices, dict) and not flight_prices:
+            return [], [None] * len(leg.preferred_schedules), 0, 0
         known_list = _first(result, "flights", "flightList", "data.flights", "data.flightList", "flightData")
         if known_list == []:
             return [], [None] * len(leg.preferred_schedules), 0, 0
@@ -260,23 +409,29 @@ def parse_completed_payload(
 
     eligible: list[FlightSnapshot] = []
     parse_failures: list[str] = []
+    return_leg = _return_leg_config(leg) if leg.is_round_trip else None
     for index, item in enumerate(candidates, start=1):
         try:
-            segments = [_parse_segment(raw, leg) for raw in _segment_dicts(item)]
-            search_origin = str(_first(item, "journey.depCityCode", default=segments[0].origin_airport_iata)).upper()
-            search_destination = str(
-                _first(item, "journey.arrCityCode", default=segments[-1].destination_airport_iata)
-            ).upper()
-            if search_origin != leg.origin_airport_iata:
+            outbound = _eligible_itinerary(item, leg) if not leg.is_round_trip else None
+            return_itinerary: ItinerarySnapshot | None = None
+            inbound_segments_for_signature: list[Segment] = []
+            if leg.is_round_trip:
+                trips = _first(item, "journey.trips")
+                if not isinstance(trips, list) or len(trips) != 2 or not all(isinstance(trip, dict) for trip in trips):
+                    raise ParseError("往返报价的 journey.trips 必须恰好包含去程和返程")
+                assert return_leg is not None
+                outbound = _eligible_itinerary(trips[0], leg)
+                inbound = _eligible_itinerary(trips[1], return_leg)
+                if outbound is None or inbound is None:
+                    continue
+                inbound_segments, inbound_layover, inbound_duration, inbound_seats = inbound
+                inbound_segments_for_signature = inbound_segments
+                return_itinerary = _itinerary_snapshot(
+                    inbound_segments, inbound_layover, inbound_duration, inbound_seats
+                )
+            if outbound is None:
                 continue
-            if search_destination != leg.destination_airport_iata:
-                continue
-            if segments[0].etd_local.date() != leg.departure_date:
-                continue
-            if not leg.etd_window.contains(segments[0].etd_local.time()):
-                continue
-            if leg.direct_only and len(segments) != 1:
-                continue
+            segments, total_layover, duration, outbound_seats = outbound
 
             price = item["price"]
             currency = str(_first(price, "currencyCode", "currency", default="CNY")).upper()
@@ -284,12 +439,12 @@ def parse_completed_payload(
                 continue
             total = _decimal(price.get("lowTotalPrice"), "price.lowTotalPrice", required=True)
             assert total is not None
-            duration = _integer(_first(item, "durationMinutes", "duration", "flightDuration", "journey.duration"))
-            if duration is None:
-                duration = int((segments[-1].eta_local - segments[0].etd_local).total_seconds() // 60)
+            signature_segments = list(segments)
+            signature_segments.extend(inbound_segments_for_signature)
+            overall_seats = _seat_availability(item)
             eligible.append(
                 FlightSnapshot(
-                    flight_signature=_signature(segments),
+                    flight_signature=_signature(signature_segments),
                     flight_codes=tuple(segment.flight_code for segment in segments),
                     carrier_codes=tuple(dict.fromkeys(segment.carrier_code for segment in segments)),
                     origin_airport_iata=segments[0].origin_airport_iata,
@@ -304,18 +459,11 @@ def parse_completed_payload(
                     tax_cny=_decimal(price.get("tax"), "price.tax"),
                     total_price_cny=total,
                     currency_code=currency,
-                    remaining_seats=str(
-                        _first(
-                            item,
-                            "remainingSeats",
-                            "seatCount",
-                            "seatStatus",
-                            "price.seatCount",
-                            "journey.seatInfo.nums",
-                            default="",
-                        )
-                    )
-                    or None,
+                    remaining_seats=(
+                        str(overall_seats.count_hint)
+                        if overall_seats and overall_seats.count_hint is not None
+                        else overall_seats.count_text if overall_seats else None
+                    ),
                     free_baggage_piece=_integer(
                         _first(
                             item,
@@ -351,6 +499,11 @@ def parse_completed_payload(
                         or None
                     ),
                     captured_at=captured_at,
+                    connection_airports=tuple(segment.destination_airport_iata for segment in segments[:-1]),
+                    layover_minutes=total_layover,
+                    return_itinerary=return_itinerary,
+                    seat_availability=overall_seats,
+                    outbound_seat_availability=outbound_seats,
                     raw_item=item,
                 )
             )

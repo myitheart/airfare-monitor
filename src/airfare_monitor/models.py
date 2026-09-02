@@ -71,7 +71,7 @@ class LegConfig:
     departure_date: date
     etd_window: EtdWindow
     direct_only: bool
-    expected_total_price_cny: Decimal
+    expected_total_price_cny: Decimal | None
     top_n: int
     adult_count: int
     child_count: int
@@ -80,6 +80,15 @@ class LegConfig:
     destination_name_zh: str | None = None
     preferred_schedules: tuple[PreferredSchedule, ...] = ()
     market: str = "auto"
+    max_layover_minutes: int | None = None
+    return_date: date | None = None
+    return_etd_window: EtdWindow | None = None
+    return_direct_only: bool | None = None
+    return_max_layover_minutes: int | None = None
+
+    @property
+    def is_round_trip(self) -> bool:
+        return self.return_date is not None
 
     @property
     def route_label(self) -> str:
@@ -103,7 +112,8 @@ class LegConfig:
 
     @property
     def route_display(self) -> str:
-        return f"{self.origin_display} → {self.destination_display}"
+        arrow = " ↔ " if self.is_round_trip else " → "
+        return f"{self.origin_display}{arrow}{self.destination_display}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +124,66 @@ class Segment:
     destination_airport_iata: str
     etd_local: datetime
     eta_local: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class SeatAvailability:
+    """Best-effort inventory hint exposed by the search result.
+
+    Qunar commonly caps the numeric hint at 9, so it must not be presented as
+    an exact remaining-seat count when the observed value is 9 or greater.
+    """
+
+    count_hint: int | None = None
+    count_text: str | None = None
+    scarcity_text: str | None = None
+    ticket_insufficient: bool | None = None
+
+    def display(self) -> str:
+        if self.count_hint is not None:
+            count = (
+                "9张或以上（平台提示）"
+                if self.count_hint >= 9
+                else f"{self.count_hint}张"
+            )
+        else:
+            count = self.count_text or "余票数未知"
+        if self.scarcity_text and self.scarcity_text not in count:
+            count = f"{count}（{self.scarcity_text}）"
+        parts = [count]
+        if self.ticket_insufficient is True:
+            parts.append("库存状态需复核")
+        return " · ".join(parts)
+
+
+@dataclass(frozen=True, slots=True)
+class ItinerarySnapshot:
+    flight_signature: str
+    flight_codes: tuple[str, ...]
+    carrier_codes: tuple[str, ...]
+    origin_airport_iata: str
+    destination_airport_iata: str
+    departure_date: date
+    etd_local: datetime
+    eta_local: datetime
+    duration_minutes: int | None
+    segment_count: int
+    is_direct: bool
+    connection_airports: tuple[str, ...] = ()
+    layover_minutes: int | None = None
+    seat_availability: SeatAvailability | None = None
+
+    @property
+    def flight_codes_display(self) -> str:
+        return "/".join(self.flight_codes)
+
+    @property
+    def carrier_codes_display(self) -> str:
+        return "/".join(self.carrier_codes)
+
+    @property
+    def connection_airports_display(self) -> str:
+        return "/".join(self.connection_airports)
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +208,11 @@ class FlightSnapshot:
     free_baggage_weight: str | None
     source_domain: str | None
     captured_at: datetime
+    connection_airports: tuple[str, ...] = ()
+    layover_minutes: int | None = None
+    return_itinerary: ItinerarySnapshot | None = None
+    seat_availability: SeatAvailability | None = None
+    outbound_seat_availability: SeatAvailability | None = None
     raw_item: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
@@ -147,6 +222,10 @@ class FlightSnapshot:
     @property
     def carrier_codes_display(self) -> str:
         return "/".join(self.carrier_codes)
+
+    @property
+    def connection_airports_display(self) -> str:
+        return "/".join(self.connection_airports)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +244,7 @@ class LegResult:
     flights: list[FlightSnapshot] = field(default_factory=list)
     preferred_matches: list[FlightSnapshot | None] = field(default_factory=list)
     preferred_price_references: list[PreferredPriceReference] = field(default_factory=list)
+    flight_price_references: dict[str, PreferredPriceReference] = field(default_factory=dict)
     completed_response: bool = False
     observed_count: int = 0
     eligible_count: int = 0
@@ -180,7 +260,8 @@ class LegResult:
     @property
     def threshold_hit(self) -> bool:
         value = self.minimum_total_cny
-        return self.status == LegStatus.SUCCESS and value is not None and value <= self.leg.expected_total_price_cny
+        threshold = self.leg.expected_total_price_cny
+        return self.status == LegStatus.SUCCESS and value is not None and threshold is not None and value <= threshold
 
 
 @dataclass(slots=True)

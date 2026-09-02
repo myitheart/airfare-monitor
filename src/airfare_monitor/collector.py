@@ -51,6 +51,26 @@ def build_tongcheng_search_url(template: str, leg: LegConfig) -> str:
         raise CollectionError(f"tongcheng_search_url_template 含未知占位符：{exc.args[0]}") from exc
 
 
+def build_roundtrip_search_url(template: str, leg: LegConfig) -> str:
+    if leg.return_date is None:
+        raise CollectionError("往返搜索缺少 return_date")
+    values = {
+        "origin": quote(leg.origin_airport_iata),
+        "destination": quote(leg.destination_airport_iata),
+        "origin_name": quote(leg.origin_name_zh or leg.origin_airport_iata),
+        "destination_name": quote(leg.destination_name_zh or leg.destination_airport_iata),
+        "date": quote(leg.departure_date.isoformat()),
+        "return_date": quote(leg.return_date.isoformat()),
+        "adult_count": leg.adult_count,
+        "child_count": leg.child_count,
+        "cabin_class": quote(leg.cabin_class),
+    }
+    try:
+        return template.format(**values)
+    except KeyError as exc:
+        raise CollectionError(f"roundtrip_search_url_template 含未知占位符：{exc.args[0]}") from exc
+
+
 def _response_body(packet: Any) -> dict[str, Any] | None:
     if packet is False or packet is None:
         return None
@@ -224,6 +244,43 @@ class QunarBrowserSession:
         suffix = f"，queryId={query_id}" if query_id else ""
         raise IncompleteResponseError(f"等待去哪儿完整搜索响应超时{suffix}")
 
+    def _collect_qunar_round_trip(self, leg: LegConfig, captured_at: datetime) -> LegResult:
+        assert self.tab is not None
+        url = build_roundtrip_search_url(self.settings.roundtrip_search_url_template, leg)
+        self.tab.listen.start(LISTEN_TARGET)
+        self.tab.get(url, timeout=self.settings.page_load_timeout_seconds)
+        deadline = time.monotonic() + self.settings.search_completion_timeout_seconds
+        last_payload: dict[str, Any] | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            packet = self.tab.listen.wait(timeout=remaining, raise_err=False)
+            payload = _response_body(packet)
+            if payload is None:
+                break
+            last_payload = payload
+            if is_completed_payload(payload):
+                flights, preferred_matches, observed_count, eligible_count = parse_completed_payload(
+                    payload, leg, captured_at
+                )
+                return LegResult(
+                    leg=leg,
+                    status=LegStatus.SUCCESS,
+                    captured_at=captured_at,
+                    flights=flights,
+                    preferred_matches=preferred_matches,
+                    completed_response=True,
+                    observed_count=observed_count,
+                    eligible_count=eligible_count,
+                    raw_response=payload,
+                )
+        if self._verification_visible():
+            raise ManualAttentionRequired("页面出现验证码或设备验证，需要人工处理")
+        query_id = last_payload.get("result", {}).get("ctrlInfo", {}).get("queryId") if last_payload else None
+        suffix = f"，queryId={query_id}" if query_id else ""
+        raise IncompleteResponseError(f"等待去哪儿完整往返搜索响应超时{suffix}")
+
     def _collect_tongcheng(self, leg: LegConfig, captured_at: datetime) -> LegResult:
         if not leg.direct_only:
             raise CollectionError("同程国内采集目前只支持 direct_only: true，以保证完整航段签名")
@@ -275,6 +332,10 @@ class QunarBrowserSession:
         captured_at = now()
         try:
             market = resolve_market(leg)
+            if leg.is_round_trip:
+                if market == "domestic":
+                    raise CollectionError("往返合计价采集目前只支持去哪儿跨境/国际航线")
+                return self._collect_qunar_round_trip(leg, captured_at)
             if market == "domestic":
                 return self._collect_tongcheng(leg, captured_at)
             return self._collect_qunar(leg, captured_at)

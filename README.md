@@ -2,7 +2,7 @@
 
 个人使用的多航程航班价格监控工具。程序使用 DrissionPage 控制一个独立 Chromium Profile，并按航线自动选择查询来源：中国大陆境内航线使用同程旅行，跨境/国际航线使用去哪儿。去哪儿按照正常页面流程填写搜索框并点击搜索；同程直接打开包含航线、中文城市名和日期的公开结果页 URL，不操作城市联想。程序只读取浏览器实际收到的数据。
 
-去哪儿只有 `result.ctrlInfo.completed == true` 的最终响应才会作为成功结果；同程直接结果页必须等到 Nuxt 页面状态报告 `dataflag == last`，并通过航线和日期一致性校验。程序默认保留每程含税总价最低的 10 个直达航班，写入 SQLite、生成一份合并 Excel，并发送一封手机可读的摘要邮件。
+去哪儿只有 `result.ctrlInfo.completed == true` 的最终响应才会作为成功结果；同程直接结果页必须等到 Nuxt 页面状态报告 `dataflag == last`，并通过航线和日期一致性校验。程序支持单程价和去哪儿国际往返组合价，可分别限制去返程时间窗、直达要求及中转等待时间。结果写入 SQLite、生成一份合并 Excel，并发送一封手机可读的摘要邮件。
 
 本项目只负责查询、记录和通知，不登录查询网站，不自动下单或支付，也不处理或绕过验证码、设备验证。
 
@@ -12,7 +12,8 @@
 - 自动判定中国大陆国内/跨境航线，分别使用同程旅行/去哪儿；每程可显式覆盖。
 - 机场/城市 IATA 代码联想选择，保存航班实际起降机场。
 - 仅接受完整搜索响应，不把中间增量结果记为成功。
-- 直达和 ETD 时间窗筛选，按 CNY 含税总价升序排列。
+- 可按航程选择仅直达或允许中转，可限制总中转等待时间，并按 CNY 含税总价升序排列。
+- 国际往返直接解析去哪儿往返报价组合，监控平台给出的往返含税合计价，不把两个单程最低价相加。
 - 同一行程的多个供应商报价按完整航班签名去重，保留最低总价。
 - SQLite 历史记录、24 小时最低价历史和原始响应短期保存。
 - 一份合并 Excel 和一封合并邮件，不按航程分别发送。
@@ -146,13 +147,45 @@ legs:
 | `departure_date` | 出发日期，必须是 `YYYY-MM-DD` |
 | `etd_window.start/end` | 当地计划起飞时间窗，必须是 `HH:MM` |
 | `direct_only` | `true` 只保留直达，`false` 允许中转 |
-| `expected_total_price_cny` | 心理价位，使用解析后的 CNY 含税总价比较 |
+| `max_layover_minutes` | 可选；允许中转时，所有相邻航段等待时间总和的上限，如 `240` 表示 4 小时 |
+| `return_date` | 可选；填写后该项改为往返组合价监控，日期必须晚于去程 |
+| `return_etd_window.start/end` | 往返配置必填；返程当地起飞时间窗 |
+| `return_direct_only` | 可选；返程是否仅直达，默认沿用去程 `direct_only` |
+| `return_max_layover_minutes` | 可选；返程总中转等待上限，默认沿用去程上限 |
+| `expected_total_price_cny` | 心理价位，使用解析后的 CNY 含税总价比较；显式填 `null` 表示只观察、不触发低价命中 |
 | `top_n` | 每程最多保留多少个最低价行程 |
 | `adult_count` | 成人数量，至少为 1 |
 | `child_count` | 儿童数量，可以为 0 |
 | `cabin_class` | `economy`、`premium_economy`、`business` 或 `first` |
 | `market` | 可选，默认 `auto`；也可填写 `domestic` 或 `international` 强制选择来源 |
-| `preferred_schedules` | 可选关注时刻列表；邮件会在最低价 3 条之外展示匹配航班的实时含税价 |
+| `preferred_schedules` | 可选关注时刻列表；邮件会在最低价 5 条之外优先展示匹配航班的实时含税价 |
+
+### 允许中转的配置
+
+```yaml
+direct_only: false
+max_layover_minutes: 240
+expected_total_price_cny: null
+```
+
+`max_layover_minutes` 统计整个行程所有中转等待时间的总和，不是总旅行时长。直达航班不受该上限影响。符合条件的直达和中转行程会合并按含税总价排序，取最低 `top_n` 条。邮件和 Excel 会标明中转次数、中转机场和总等待时间。
+
+### 往返合计价配置
+
+```yaml
+id: roundtrip-sha-kul
+origin_airport_iata: SHA
+destination_airport_iata: KUL
+departure_date: "2026-09-26"
+etd_window: {start: "06:00", end: "11:59"}
+direct_only: true
+return_date: "2026-10-03"
+return_etd_window: {start: "00:00", end: "23:59"}
+return_direct_only: true
+expected_total_price_cny: null
+```
+
+往返搜索的一条候选是一组不可拆分的“去程 + 返程 + 含税合计价”。排序、历史、心理价位和二次确认都使用响应中该组合的 `price.lowTotalPrice`，不会把两个单程查询的价格相加。往返合计价目前只支持去哪儿跨境/国际航线。
 
 ### 国内/国际来源选择
 
@@ -242,6 +275,7 @@ browser:
   search_completion_timeout_seconds: 75
   restart_after_consecutive_failures: 2
   search_url_template: "https://flight.qunar.com/site/oneway_list_inter.htm"
+  roundtrip_search_url_template: "https://flight.qunar.com/site/interroundtrip_compare.htm?fromCity={origin_name}&toCity={destination_name}&fromDate={date}&toDate={return_date}&fromCode={origin}&toCode={destination}&from=flight_dom_search&lowestPrice=null&isInter=true&favoriteKey=&showTotalPr=null&adultNum={adult_count}&childNum={child_count}&cabinClass={cabin_class}"
   tongcheng_search_url_template: "https://www.ly.com/flights/itinerary/oneway/{origin}-{destination}?date={date}&from={origin_name}&to={destination_name}&fromairport=&toairport=&p=&childticket=0,0"
 ```
 
@@ -250,6 +284,7 @@ browser:
 - `local_port` 被占用时可换成其他未使用端口，例如 `9444`。
 - `search_completion_timeout_seconds` 是等待最终完整响应的最长时间。
 - `search_url_template` 是去哪儿国际单程页面。
+- `roundtrip_search_url_template` 是去哪儿国际往返结果页模板；保留样例中的全部占位符。
 - `tongcheng_search_url_template` 是同程结果页入口，用于加载录制中验证过的国内搜索表单；不要删除其中的占位符。
 
 ### 低价二次确认
@@ -397,8 +432,8 @@ airfare-monitor_YYYYMMDD_HHMM.xlsx
 
 工作簿包含：
 
-- `本次汇总`：每程心理价位、最低价、变化、命中状态和采集状态。
-- `航程1`～`航程N`：根据启用航程数量动态生成，每程保存最低价直达航班。
+- `本次汇总`：每项显示单程/往返类型、去返日期与时间窗、心理价位、最低价、变化和采集状态。
+- `航程1`～`航程N`：保存最低价候选；往返项同时展示去程和返程的航班号、时间、中转机场及合计价。
 - `24小时历史`：各程每次采集的最低总价。
 
 ### SQLite
@@ -431,13 +466,15 @@ data/browser-profile/
 [航价监控] N程更新 | YYYY-MM-DD HH:mm
 ```
 
+当全部配置都是往返时：`[航价监控] N组往返更新 | YYYY-MM-DD HH:mm`。
+
 确认命中心理价位时：
 
 ```text
 [低价命中][命中数/N程] 上海（SHA） → 吉隆坡（KUL） ¥980 ≤ ¥1,000 | YYYY-MM-DD HH:mm
 ```
 
-部分航程失败时，主题包含 `[部分失败]`。邮件正文使用“中文名（IATA）”显示航程，并优先展示独立的“重点关注时段价格”卡片，包括目标/实际时刻、本次价、首次监控价、较首次变化、上次价和较上次变化；最便宜的三个航班作为备选区域排在其后。价格和库存仍需在 App 中最终确认。
+部分航程失败时，主题包含 `[部分失败]`。邮件正文使用“中文名（IATA）”显示航程，并优先展示独立的“重点关注时段价格”卡片，包括目标/实际时刻、本次价、首次监控价、较首次变化、上次价、较上次变化和余票提示；最低价候选区域排在其后，最多展示 5 条。即使没有配置关注时段，每条最低价候选也会按照完整航班签名显示本次价格、首次出现价格、较首次变化、上次价格和较上次变化。往返组合会分别显示整体、去程和返程余票提示，例如 `余票：整体 2张（票少） · 去程 9张或以上（平台提示） · 返程 2张（票少）`。去哪儿返回的 `9` 通常是库存提示上限，因此程序显示为“9张或以上（平台提示）”，不把它当作精确库存。价格和库存仍需在 App 中最终确认。
 
 “首次监控价”是该关注目标第一次成功匹配到航班时的含税费总价；未匹配的运行不会建立或覆盖基准。修改容差不会重置首次价，修改出发日期、目标起降时间或实际机场会视为新的关注目标并重新建立首次价。该历史从启用此功能后的第一次成功采集开始，不会从旧的最低价快照中推测补录。
 

@@ -69,6 +69,13 @@ class BrowserSettings:
         "https://www.ly.com/flights/itinerary/oneway/{origin}-{destination}"
         "?date={date}&from={origin_name}&to={destination_name}&fromairport=&toairport=&p=&childticket=0,0"
     )
+    roundtrip_search_url_template: str = (
+        "https://flight.qunar.com/site/interroundtrip_compare.htm"
+        "?fromCity={origin_name}&toCity={destination_name}&fromDate={date}&toDate={return_date}"
+        "&fromCode={origin}&toCode={destination}&from=flight_dom_search&lowestPrice=null"
+        "&isInter=true&favoriteKey=&showTotalPr=null&adultNum={adult_count}"
+        "&childNum={child_count}&cabinClass={cabin_class}"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -276,6 +283,48 @@ def load_routes(path: str | Path) -> list[LegConfig]:
         preference_keys = [preferred.history_key(departure_date) for preferred in preferred_schedules]
         if len(preference_keys) != len(set(preference_keys)):
             raise ConfigError(f"{prefix}.preferred_schedules 存在重复的机场和目标时刻")
+        if "expected_total_price_cny" not in item:
+            raise ConfigError(f"缺少配置 {prefix}.expected_total_price_cny")
+
+        return_date = (
+            _parse_date(item["return_date"], f"{prefix}.return_date")
+            if item.get("return_date") is not None
+            else None
+        )
+        return_window: EtdWindow | None = None
+        return_direct_only: bool | None = None
+        return_max_layover_minutes: int | None = None
+        if return_date is not None:
+            if return_date <= departure_date:
+                raise ConfigError(f"{prefix}.return_date 必须晚于去程日期")
+            raw_return_window = _mapping(
+                _required(item, "return_etd_window", prefix), f"{prefix}.return_etd_window"
+            )
+            return_window = EtdWindow(
+                start=_parse_time(
+                    _required(raw_return_window, "start", f"{prefix}.return_etd_window"),
+                    f"{prefix}.return_etd_window.start",
+                ),
+                end=_parse_time(
+                    _required(raw_return_window, "end", f"{prefix}.return_etd_window"),
+                    f"{prefix}.return_etd_window.end",
+                ),
+            )
+            return_direct_only = _boolean(
+                item.get("return_direct_only", item.get("direct_only")),
+                f"{prefix}.return_direct_only",
+            )
+            raw_return_layover = item.get("return_max_layover_minutes", item.get("max_layover_minutes"))
+            return_max_layover_minutes = (
+                _positive_int(raw_return_layover, f"{prefix}.return_max_layover_minutes")
+                if raw_return_layover is not None
+                else None
+            )
+        elif any(
+            key in item
+            for key in ("return_etd_window", "return_direct_only", "return_max_layover_minutes")
+        ):
+            raise ConfigError(f"{prefix} 配置了返程字段但缺少 return_date")
 
         legs.append(
             LegConfig(
@@ -289,8 +338,10 @@ def load_routes(path: str | Path) -> list[LegConfig]:
                     end=_parse_time(_required(window, "end", f"{prefix}.etd_window"), f"{prefix}.etd_window.end"),
                 ),
                 direct_only=_boolean(_required(item, "direct_only", prefix), f"{prefix}.direct_only"),
-                expected_total_price_cny=_parse_decimal(
-                    _required(item, "expected_total_price_cny", prefix), f"{prefix}.expected_total_price_cny"
+                expected_total_price_cny=(
+                    _parse_decimal(item["expected_total_price_cny"], f"{prefix}.expected_total_price_cny")
+                    if item.get("expected_total_price_cny") is not None
+                    else None
                 ),
                 top_n=_positive_int(_required(item, "top_n", prefix), f"{prefix}.top_n"),
                 adult_count=_positive_int(_required(item, "adult_count", prefix), f"{prefix}.adult_count"),
@@ -310,6 +361,15 @@ def load_routes(path: str | Path) -> list[LegConfig]:
                 ),
                 preferred_schedules=tuple(preferred_schedules),
                 market=market,
+                max_layover_minutes=(
+                    _positive_int(item["max_layover_minutes"], f"{prefix}.max_layover_minutes")
+                    if item.get("max_layover_minutes") is not None
+                    else None
+                ),
+                return_date=return_date,
+                return_etd_window=return_window,
+                return_direct_only=return_direct_only,
+                return_max_layover_minutes=return_max_layover_minutes,
             )
         )
     if not any(leg.enabled for leg in legs):
@@ -381,6 +441,17 @@ def load_settings(path: str | Path, *, project_root: str | Path | None = None) -
                     "&fromairport=&toairport=&p=&childticket=0,0",
                 ),
                 "settings.browser.tongcheng_search_url_template",
+            ),
+            roundtrip_search_url_template=_string(
+                browser.get(
+                    "roundtrip_search_url_template",
+                    "https://flight.qunar.com/site/interroundtrip_compare.htm"
+                    "?fromCity={origin_name}&toCity={destination_name}&fromDate={date}&toDate={return_date}"
+                    "&fromCode={origin}&toCode={destination}&from=flight_dom_search&lowestPrice=null"
+                    "&isInter=true&favoriteKey=&showTotalPr=null&adultNum={adult_count}"
+                    "&childNum={child_count}&cabinClass={cabin_class}",
+                ),
+                "settings.browser.roundtrip_search_url_template",
             ),
         ),
         collection=CollectionSettings(

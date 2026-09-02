@@ -5,10 +5,10 @@
 1. Load all enabled legs and validate airport codes, dates, ETD windows and optional market overrides.
 2. Resolve `market: auto` from the IATA country dataset: mainland-China domestic routes use Tongcheng; all cross-border routes use Qunar.
 3. Reuse one isolated Chromium profile and process legs serially.
-4. For Qunar, operate the normal search form and start listening before clicking search. For Tongcheng, navigate directly to its public route/date result URL and wait for the structured Nuxt page state to finish combining the server-rendered initial group with its continuation group.
+4. For Qunar one-way searches, operate the normal search form and start listening before clicking search. For Qunar round trips, start listening and navigate to the normal public round-trip result URL containing both dates. For Tongcheng, navigate directly to its public route/date result URL and wait for the structured Nuxt page state to finish combining the server-rendered initial group with its continuation group.
 5. Qunar consumes incremental `/touch/api/inter/wwwsearch` responses until `result.ctrlInfo.completed == true`.
 6. Tongcheng direct navigation is complete only when `window.__NUXT__.state.book1.dataflag == last`, its route/date match the requested leg, and `flightLists` is a list. The lower-level parser also retains strict support for recorded `apiSuccess=true / dataflag=all` responses.
-7. Parse flights, keep direct journeys inside the configured ETD window, and sort by CNY tax-inclusive total price.
+7. Parse flights, apply direction-specific ETD/direct-or-connection/maximum-layover filters, and sort by CNY tax-inclusive total price. A round-trip candidate retains both `journey.trips` entries and uses the combination `price.lowTotalPrice`.
 8. Retain at most `top_n` results for each leg.
 9. Save the run and flight snapshots to SQLite.
 10. Compare each leg's minimum total price with its configured expectation and the previous run.
@@ -43,7 +43,7 @@ A threshold hit means:
 minimum eligible total price <= expected_total_price_cny
 ```
 
-The comparison must use total CNY price after taxes when available. A threshold hit should be rechecked once after the configured delay before the email is marked as a confirmed low-price alert.
+The comparison must use total CNY price after taxes when available. An explicit null threshold makes the leg observation-only. A threshold hit should be rechecked once after the configured delay before the email is marked as a confirmed low-price alert.
 
 ## Failure handling
 

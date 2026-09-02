@@ -12,6 +12,16 @@ legs:
       start: "00:00"
       end: "23:59"
     direct_only: true
+    # 可选：配置后该项按去哪儿往返组合价采集，不是两个单程价相加。
+    # return_date: "2026-10-08"
+    # return_etd_window:
+    #   start: "12:00"
+    #   end: "23:59"
+    # return_direct_only: true
+    # return_max_layover_minutes: 240
+    # direct_only: false 时可选：所有中转等待时间的总和不超过 4 小时。
+    # max_layover_minutes: 240
+    # 设为 null 可只观察价格，不触发低价命中邮件。
     expected_total_price_cny: 1500
     top_n: 10
     adult_count: 1
