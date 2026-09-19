@@ -32,11 +32,18 @@ from ..storage import SQLiteStore
 
 
 class FlightResultsPage(QWidget):
-    def __init__(self, store: SQLiteStore | None, *, on_back: Callable[[], None]):
+    def __init__(
+        self,
+        store: SQLiteStore | None,
+        *,
+        on_back: Callable[[], None],
+        on_open_search: Callable[[LegConfig], None] | None = None,
+    ):
         super().__init__()
         self.setObjectName("pageCanvas")
         self.store = store
         self.on_back = on_back
+        self.on_open_search = on_open_search
         self.route: LegConfig | None = None
         self.result: dict[str, object] | None = None
         self.candidates: list[dict[str, object]] = []
@@ -60,6 +67,12 @@ class FlightResultsPage(QWidget):
         title_row.addStretch()
         self.complete_badge = QLabel("完整响应", objectName="activePill")
         title_row.addWidget(self.complete_badge)
+        self.open_site_button = QPushButton("在来源网站打开", objectName="historyAction")
+        self.open_site_button.setToolTip("用默认浏览器打开与监控同口径的来源网站搜索结果页")
+        self.open_site_button.hide()
+        if self.on_open_search is not None:
+            self.open_site_button.clicked.connect(self._open_search)
+            title_row.addWidget(self.open_site_button)
         layout.addLayout(title_row)
 
         self.notice = QLabel(objectName="warningText", wordWrap=True)
@@ -156,6 +169,9 @@ class FlightResultsPage(QWidget):
     def show_route(self, route: LegConfig) -> None:
         self.route = route
         self.selected.clear()
+        if self.on_open_search is not None:
+            self.open_site_button.setText(f"在{'同程' if _market(route) == 'domestic' else '去哪儿'}打开")
+            self.open_site_button.show()
         arrow = "⇄" if route.return_date else "→"
         origin = route.origin_name_zh or route.origin_airport_iata
         destination = route.destination_name_zh or route.destination_airport_iata
@@ -178,6 +194,10 @@ class FlightResultsPage(QWidget):
         self._render_summary()
         self._render()
         self._update_compare_bar()
+
+    def _open_search(self) -> None:
+        if self.route is not None and self.on_open_search is not None:
+            self.on_open_search(self.route)
 
     def _render_summary(self) -> None:
         if not self.result:
@@ -434,17 +454,42 @@ def _fare_breakdown(item: dict[str, object]) -> str:
 
 
 def _baggage_and_seats(item: dict[str, object]) -> str:
-    pieces = item.get("free_baggage_piece")
-    weight = item.get("free_baggage_weight")
-    baggage = "行李未提供"
-    if pieces is not None or weight:
-        baggage = f"行李 {pieces if pieces is not None else '—'} 件"
-        if weight:
-            baggage += f" / {weight}"
+    tiers = _luggage_price_tiers(item)
+    baggage = "\n".join(tiers) if tiers else "行李额未提供"
     seats = item.get("seat_availability")
     remaining = item.get("remaining_seats")
     seat_text = _seat_text(seats) or (f"余票 {remaining}" if remaining else "余票未提供")
     return f"{baggage}\n{seat_text}"
+
+
+def _luggage_price_tiers(item: dict[str, object]) -> list[str]:
+    """按「价格级」呈现行李信息：本档免费额 + 含行李最低价（若接口提供）。
+
+    数据边界：列表响应只含免费额与含行李最低价两个信号；按重量的
+    分档购买价属详情页数据，本工具不做逐航班详情抓取。
+    """
+    pieces = item.get("free_baggage_piece")
+    weight = str(item.get("free_baggage_weight") or "").strip()
+    weight = "" if weight in ("0", "0kg", "0KG", "0Kg") else weight
+    piece_count = int(pieces) if pieces not in (None, "") else 0
+    luggage_price = _decimal(item.get("luggage_inclusive_price_cny"))
+    if piece_count == 0 and not weight and luggage_price is None and pieces is None:
+        return []  # 接口完全未提供行李信息
+    tiers: list[str] = []
+    if piece_count > 0 or weight:
+        free_text = f"本价含免费托运 {piece_count or '—'} 件"
+        if weight:
+            free_text += f" / {weight}"
+        tiers.append(free_text)
+    else:
+        tiers.append("本价不含免费托运行李")
+    luggage_price = _decimal(item.get("luggage_inclusive_price_cny"))
+    total = _decimal(item.get("total_price_cny"))
+    if luggage_price is not None and total is not None:
+        delta = luggage_price - total
+        suffix = f"（+¥{delta:,.0f}）" if delta > 0 else ""
+        tiers.append(f"含行李最低档 ¥{luggage_price:,.0f}{suffix}")
+    return tiers
 
 
 def _seat_text(value: object) -> str | None:

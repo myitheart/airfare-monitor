@@ -204,6 +204,20 @@ def _parse_decimal(value: Any, path: str) -> Decimal:
     return parsed
 
 
+def _optional_iata_list(value: Any, path: str) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{path} 必须是非空列表")
+    codes: list[str] = []
+    for index, item in enumerate(value, start=1):
+        code = _string(item, f"{path}[{index}]").upper()
+        if not _IATA_RE.fullmatch(code):
+            raise ConfigError(f"{path}[{index}] 必须是三个英文字母")
+        codes.append(code)
+    return tuple(codes)
+
+
 def validate_enabled_leg_limit(legs: list[LegConfig]) -> None:
     """Reject configurations that would put crawler-like load on one device."""
     enabled_count = sum(leg.enabled for leg in legs)
@@ -390,6 +404,8 @@ def load_routes(path: str | Path, *, allow_empty: bool = False) -> list[LegConfi
                 return_etd_window=return_window,
                 return_direct_only=return_direct_only,
                 return_max_layover_minutes=return_max_layover_minutes,
+                origin_airports=_optional_iata_list(item.get("origin_airports"), f"{prefix}.origin_airports"),
+                destination_airports=_optional_iata_list(item.get("destination_airports"), f"{prefix}.destination_airports"),
             )
         )
     validate_enabled_leg_limit(legs)

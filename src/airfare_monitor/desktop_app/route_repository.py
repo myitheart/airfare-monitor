@@ -56,6 +56,10 @@ def _serialize_leg(leg: LegConfig) -> dict[str, object]:
     }
     if leg.max_layover_minutes is not None:
         record["max_layover_minutes"] = leg.max_layover_minutes
+    if leg.origin_airports is not None:
+        record["origin_airports"] = list(leg.origin_airports)
+    if leg.destination_airports is not None:
+        record["destination_airports"] = list(leg.destination_airports)
     if leg.return_date is not None:
         record["return_date"] = leg.return_date.isoformat()
         assert leg.return_etd_window is not None

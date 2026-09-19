@@ -143,10 +143,12 @@ class DesktopR1Tests(unittest.TestCase):
             window.system.set_runtime("等待下轮", "下一次自动查询将在 30 分钟后开始。")
             self.assertEqual(window.system.runtime_label.text(), "运行状态：等待下轮")
             self.assertIn("30 分钟", window.system.runtime_detail_label.text())
-            self.assertEqual((window.dashboard.runtime_control.width(), window.dashboard.runtime_control.height()), (108, 40))
-            self.assertEqual((window.dashboard.pause_button.width(), window.dashboard.pause_button.height()), (112, 40))
-            self.assertEqual((window.dashboard.run_button.width(), window.dashboard.run_button.height()), (116, 40))
-            self.assertEqual((window.dashboard.add_button.width(), window.dashboard.add_button.height()), (118, 40))
+            window.dashboard.set_runtime("等待下轮", "下次自动查询：09-17 16:12")
+            self.assertIn("等待下轮", window.dashboard.runtime_detail_label.text())
+            self.assertIn("下次自动查询", window.dashboard.runtime_detail_label.text())
+            self.assertEqual((window.dashboard.pause_button.width(), window.dashboard.pause_button.height()), (112, 36))
+            self.assertEqual((window.dashboard.run_button.width(), window.dashboard.run_button.height()), (116, 36))
+            self.assertEqual((window.dashboard.add_button.width(), window.dashboard.add_button.height()), (118, 36))
             emitted: list[DesktopSettings] = []
             window.runtime_settings_saved.connect(emitted.append)
             window.system.form.interval_combo.setCurrentIndex(

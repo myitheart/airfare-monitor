@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from airfare_monitor.app_paths import AppPaths
@@ -24,7 +25,7 @@ from airfare_monitor.models import (
 from airfare_monitor.storage import SQLiteStore
 from airfare_monitor.ui.app_icon import application_icon
 from airfare_monitor.ui.flight_results_page import FlightResultsPage, filter_and_sort_candidates
-from airfare_monitor.ui.history_page import HistoryPage, price_segments
+from airfare_monitor.ui.history_page import HistoryPage, PriceChart, _chart_tooltip_text, price_segments
 from airfare_monitor.ui.main_window import RoutesPage
 from airfare_monitor.ui.route_wizard import RouteWizard
 
@@ -49,6 +50,39 @@ class DesktopR2Tests(unittest.TestCase):
             price_segments(rows),
             [[(0, Decimal("1500")), (1, Decimal("1450"))], [(3, Decimal("1420"))]],
         )
+
+    def test_price_chart_tooltip_shows_capture_time_and_price(self):
+        row = {
+            "captured_at": "2026-09-17T19:27:35",
+            "status": "success",
+            "minimum_total_price_cny": "3273",
+        }
+        self.assertEqual(
+            _chart_tooltip_text(row, Decimal("3273")),
+            "采集时间：2026-09-17 19:27:35\n含税总价：¥3,273",
+        )
+
+    def test_price_chart_tooltip_shows_failed_query_status(self):
+        row = {
+            "captured_at": "2026-09-17T15:37:00",
+            "status": "manual_attention",
+            "minimum_total_price_cny": None,
+        }
+        self.assertEqual(
+            _chart_tooltip_text(row, None),
+            "采集时间：2026-09-17 15:37:00\n查询结果：需要人工处理",
+        )
+
+    def test_price_chart_hover_uses_nearest_point_within_hit_radius(self):
+        chart = PriceChart()
+        first = {"status": "success", "captured_at": "2026-09-17T19:00:00"}
+        second = {"status": "success", "captured_at": "2026-09-17T19:30:00"}
+        chart._hit_points = [
+            (0, QPointF(20, 20), first, Decimal("3200")),
+            (1, QPointF(40, 20), second, Decimal("3300")),
+        ]
+        self.assertEqual(chart._nearest_hit(QPointF(38, 22))[0], 1)
+        self.assertIsNone(chart._nearest_hit(QPointF(70, 70)))
 
     def test_application_icon_contains_branded_tray_sizes(self):
         icon = application_icon()
@@ -78,7 +112,7 @@ class DesktopR2Tests(unittest.TestCase):
             buttons = page.cards[0].findChildren(QPushButton)
             self.assertEqual(
                 {button.text() for button in buttons},
-                {"编辑", "暂停", "复制", "删除", "查看候选"},
+                {"编辑", "暂停", "复制", "删除", "查看候选", "在去哪儿打开"},
             )
             labels = {label.text() for label in page.cards[0].findChildren(QLabel)}
             self.assertIn("PVG", labels)

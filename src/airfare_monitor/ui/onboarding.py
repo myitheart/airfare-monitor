@@ -64,7 +64,7 @@ class OnboardingDialog(QDialog):
         readiness_layout.addWidget(QLabel("本地数据已准备就绪", objectName="sectionTitle"))
         readiness_layout.addWidget(
             QLabel(
-                "航程、历史价格和独立浏览器空间都会保存在当前 Windows 用户目录中，覆盖安装不会清除。",
+                "航程、历史价格和独立浏览器空间都会保存在本机用户目录中，覆盖安装不会清除。",
                 objectName="muted",
                 wordWrap=True,
             )

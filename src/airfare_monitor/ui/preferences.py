@@ -42,7 +42,7 @@ class RuntimePreferencesForm(QWidget):
             self.interval_combo.addItem(f"{minutes} 分钟", minutes)
         self.show_browser = QCheckBox("显示浏览器运行过程", objectName="runtimeOption")
         self.desktop_notifications = QCheckBox("开启桌面通知", objectName="runtimeOption")
-        self.autostart = QCheckBox("登录 Windows 后自动启动", objectName="runtimeOption")
+        self.autostart = QCheckBox("登录系统后自动启动", objectName="runtimeOption")
         self.browser_status = QLabel(objectName="muted", wordWrap=True)
 
         browser_row = QHBoxLayout()

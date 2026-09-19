@@ -63,39 +63,28 @@ class DashboardPage(QWidget):
         title_row.setSpacing(13)
         title_row.addWidget(_icon_label("sun", "#f6a515", "transparent", 52), alignment=Qt.AlignmentFlag.AlignTop)
         heading = QVBoxLayout()
-        heading.addWidget(QLabel(_greeting(), objectName="pageTitle"))
-        heading.addWidget(QLabel("航价守望与您一起，发现更好的出行时机。", objectName="muted"))
         heading.setSpacing(4)
-        title_row.addLayout(heading)
-        title_row.addStretch()
+        heading.addWidget(QLabel(_greeting(), objectName="pageTitle"))
+        self.runtime_detail_label = QLabel("设置航程后可启动监控", objectName="muted", wordWrap=True)
+        heading.addWidget(self.runtime_detail_label)
+        title_row.addLayout(heading, 1)
         title_row.setSpacing(10)
-        self.runtime_control = QFrame(objectName="dashboardStatus")
-        self.runtime_control.setFixedSize(108, 40)
-        runtime_layout = QHBoxLayout(self.runtime_control)
-        runtime_layout.setContentsMargins(13, 0, 13, 0)
-        runtime_layout.setSpacing(7)
-        runtime_layout.addWidget(QLabel("●", objectName="dashboardStatusDot"))
-        self.runtime_label = QLabel("等待配置", objectName="dashboardStatusText", alignment=Qt.AlignmentFlag.AlignCenter)
-        runtime_layout.addWidget(self.runtime_label, 1)
-        title_row.addWidget(self.runtime_control, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.pause_button = QPushButton("暂停监控", objectName="dashboardAction")
-        self.pause_button.setFixedSize(112, 40)
+        self.pause_button.setFixedSize(112, 36)
         self.pause_button.setIcon(_plain_icon("pause", "#176be3"))
         self.pause_button.clicked.connect(toggle_pause)
         self.run_button = QPushButton("立即查询", objectName="dashboardAction")
-        self.run_button.setFixedSize(116, 40)
+        self.run_button.setFixedSize(116, 36)
         self.run_button.setIcon(_plain_icon("search", "#176be3"))
         self.run_button.clicked.connect(run_now)
         self.add_button = QPushButton("添加航程", objectName="dashboardPrimaryAction")
-        self.add_button.setFixedSize(118, 40)
+        self.add_button.setFixedSize(118, 36)
         self.add_button.setIcon(_plain_icon("plus", "#ffffff"))
         self.add_button.clicked.connect(open_new_route)
-        title_row.addWidget(self.pause_button, alignment=Qt.AlignmentFlag.AlignVCenter)
-        title_row.addWidget(self.run_button, alignment=Qt.AlignmentFlag.AlignVCenter)
-        title_row.addWidget(self.add_button, alignment=Qt.AlignmentFlag.AlignVCenter)
+        title_row.addWidget(self.pause_button, alignment=Qt.AlignmentFlag.AlignTop)
+        title_row.addWidget(self.run_button, alignment=Qt.AlignmentFlag.AlignTop)
+        title_row.addWidget(self.add_button, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addLayout(title_row)
-        self.runtime_detail_label = QLabel("设置航程后可启动监控", objectName="muted", wordWrap=True)
-        layout.addWidget(self.runtime_detail_label)
 
         metrics = QHBoxLayout()
         metrics.setSpacing(12)
@@ -186,9 +175,13 @@ class DashboardPage(QWidget):
     def set_runtime(self, title: str, detail: str) -> None:
         self._runtime_title = title
         self._runtime_detail = detail
-        suffix = f" · 下次查询 {_friendly_time(self._next_run)}" if self._next_run else ""
-        self.runtime_label.setText(title)
-        self.runtime_detail_label.setText(f"{detail}{suffix}")
+        next_already_shown = "下次" in detail
+        suffix = (
+            f" · 下次查询 {_friendly_time(self._next_run)}"
+            if self._next_run and not next_already_shown
+            else ""
+        )
+        self.runtime_detail_label.setText(f"{title} · {detail}{suffix}")
 
     def set_runtime_message(self, message: str) -> None:
         self.set_runtime("正在准备", message)
@@ -246,7 +239,6 @@ class DashboardPage(QWidget):
             top.addLayout(route_copy, 1)
             status = _dashboard_route_status(route, overview.status if overview else None)
             top.addWidget(QLabel(status, objectName="activePill" if status == "运行中" else "pausedPill"))
-            top.addWidget(QLabel("•••", objectName="moreMenu"))
             card_layout.addLayout(top)
             card_layout.addWidget(_route_divider())
             bottom = QHBoxLayout()

@@ -12,6 +12,17 @@ from pathlib import Path
 APP_NAME = "AirfareMonitor"
 
 
+def _default_user_root() -> Path:
+    """Per-user runtime root following each platform's convention."""
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / APP_NAME
+    if os.name == "nt":
+        local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        return local_app_data / APP_NAME
+    xdg_data = os.environ.get("XDG_DATA_HOME")
+    return Path(xdg_data) / APP_NAME if xdg_data else Path.home() / ".local" / "share" / APP_NAME
+
+
 def _development_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -47,8 +58,7 @@ class AppPaths:
             install_root = _development_root()
             resource_root = install_root / "resources"
 
-        local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-        resolved_user_root = Path(user_root) if user_root is not None else local_app_data / APP_NAME
+        resolved_user_root = Path(user_root) if user_root is not None else _default_user_root()
         config_dir = resolved_user_root / "config"
         data_dir = resolved_user_root / "data"
         return cls(

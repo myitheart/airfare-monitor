@@ -1,4 +1,4 @@
-"""Non-overlapping interval scheduler with a persistent browser session."""
+"""Non-overlapping interval scheduler; each cycle rebuilds the service from disk."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 import os
 import random
 import time
+from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
 from typing import IO
@@ -82,21 +83,36 @@ class ProcessLock:
         self.release()
 
 
-def run_forever(service: MonitorService, lock_path: str | Path) -> None:
-    interval = service.settings.schedule.interval_minutes * 60
-    jitter = service.settings.schedule.jitter_seconds
+def run_forever(cycle_factory: Callable[[], MonitorService], lock_path: str | Path) -> None:
+    """按配置间隔循环采集；每轮经 ``cycle_factory`` 重建 service。
+
+    与桌面客户端"下一轮生效"的热更新语义保持一致：daemon 运行期间修改
+    routes/settings（增删航程、调整间隔、浏览器与邮件设置），下一轮即按
+    新配置执行，无需重启。浏览器随轮次启停，同桌面客户端。
+    """
+    fallback_wait = 300.0
     with ProcessLock(lock_path):
-        logger.info("监控调度已启动，间隔 %d 分钟", service.settings.schedule.interval_minutes)
-        try:
-            while True:
-                cycle_started = time.monotonic()
-                try:
-                    report, workbook = service.run_once(send_email=True)
-                    logger.info("运行 %s 完成：%s，Excel=%s", report.run_id, report.status, workbook)
-                except Exception:
-                    logger.exception("本轮监控运行失败")
-                elapsed = time.monotonic() - cycle_started
-                wait_seconds = max(0.0, interval - elapsed) + (random.uniform(0, jitter) if jitter else 0)
-                time.sleep(wait_seconds)
-        finally:
-            service.close()
+        logger.info("监控调度已启动（每轮重读配置）")
+        while True:
+            cycle_started = time.monotonic()
+            interval: float | None = None
+            jitter = 0.0
+            service: MonitorService | None = None
+            try:
+                service = cycle_factory()
+                interval = service.settings.schedule.interval_minutes * 60
+                jitter = service.settings.schedule.jitter_seconds
+                report, workbook = service.run_once(send_email=True)
+                logger.info("运行 %s 完成：%s，Excel=%s", report.run_id, report.status, workbook)
+            except Exception:
+                logger.exception("本轮监控运行失败")
+            finally:
+                if service is not None:
+                    try:
+                        service.close()
+                    except Exception:
+                        logger.exception("关闭本轮采集资源失败")
+            elapsed = time.monotonic() - cycle_started
+            wait_base = interval if interval is not None else fallback_wait
+            wait_seconds = max(0.0, wait_base - elapsed) + (random.uniform(0, jitter) if jitter else 0)
+            time.sleep(wait_seconds)

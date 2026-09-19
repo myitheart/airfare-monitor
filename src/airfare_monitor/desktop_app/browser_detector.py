@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import os
+import plistlib
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+
+def _is_mac() -> bool:
+    return sys.platform == "darwin"
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +40,7 @@ class BrowserDetector:
             resolved = path.expanduser()
             if not resolved.is_file() or resolved in seen:
                 continue
-            found.append(BrowserCandidate(kind=kind, path=resolved, version=self._registry_version(kind)))
+            found.append(BrowserCandidate(kind=kind, path=resolved, version=self._version_for(kind, resolved)))
             seen.add(resolved)
         return found
 
@@ -62,6 +68,25 @@ class BrowserDetector:
     @staticmethod
     def _kind_for_path(path: Path) -> str:
         return "edge" if "edge" in path.name.lower() else "chrome"
+
+    def _version_for(self, kind: str, path: Path) -> str | None:
+        if _is_mac():
+            return self._bundle_version(path)
+        return self._registry_version(kind)
+
+    @staticmethod
+    def _bundle_version(path: Path) -> str | None:
+        """Read CFBundleShortVersionString from a macOS .app bundle."""
+        for parent in path.parents:
+            if parent.suffix == ".app" and (parent / "Contents" / "Info.plist").is_file():
+                try:
+                    with (parent / "Contents" / "Info.plist").open("rb") as stream:
+                        info = plistlib.load(stream)
+                    version = info.get("CFBundleShortVersionString")
+                    return str(version) if version else None
+                except (OSError, plistlib.InvalidFileException):
+                    return None
+        return None
 
     def _registry_paths(self, kind: str) -> list[Path]:
         if os.name != "nt":
@@ -100,6 +125,17 @@ class BrowserDetector:
 
     @staticmethod
     def _common_paths(kind: str) -> list[Path]:
+        if _is_mac():
+            bundles = ("Google Chrome", "Chromium") if kind == "chrome" else ("Microsoft Edge",)
+            roots = (Path("/Applications"), Path.home() / "Applications")
+            return [
+                root / f"{bundle}.app" / "Contents" / "MacOS" / bundle
+                for root in roots
+                for bundle in bundles
+            ]
+        if os.name != "nt":
+            names = ("google-chrome", "google-chrome-stable", "chromium") if kind == "chrome" else ("microsoft-edge",)
+            return [Path("/usr/bin") / name for name in names] + [Path("/usr/local/bin") / name for name in names]
         executable = "chrome.exe" if kind == "chrome" else "msedge.exe"
         product = "Google\\Chrome" if kind == "chrome" else "Microsoft\\Edge"
         roots = [

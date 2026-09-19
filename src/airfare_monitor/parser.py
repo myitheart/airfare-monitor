@@ -302,6 +302,8 @@ def _return_leg_config(leg: LegConfig) -> LegConfig:
         leg,
         origin_airport_iata=leg.destination_airport_iata,
         destination_airport_iata=leg.origin_airport_iata,
+        origin_airports=leg.destination_airports,
+        destination_airports=leg.origin_airports,
         departure_date=leg.return_date,
         etd_window=leg.return_etd_window,
         direct_only=leg.return_direct_only if leg.return_direct_only is not None else leg.direct_only,
@@ -318,15 +320,12 @@ def _eligible_itinerary(
     item: dict[str, Any], leg: LegConfig
 ) -> tuple[list[Segment], int | None, int | None, SeatAvailability | None] | None:
     segments = [_parse_segment(raw, leg) for raw in _segment_dicts(item)]
-    # Qunar's journey-level depCityCode/arrCityCode can be city aggregate
-    # identifiers (for example SHA for every Shanghai airport). The desktop
-    # product stores a specific airport IATA, so eligibility must be decided
-    # from the actual first and last flight segments instead of those city
-    # labels. This also prevents a PVG result from being accepted for a route
-    # that explicitly selected SHA (Hongqiao).
+    # 航线起点/终点机场校验：
+    # 1. 若配置为特定单一机场（如 SHA 虹桥），allowed_* 为 {"SHA"}，只接受虹桥起降；
+    # 2. 若配置为多机场城市聚合（如上海全城），allowed_* 为 {"SHA", "PVG"}，接受任一起降。
     if (
-        segments[0].origin_airport_iata != leg.origin_airport_iata
-        or segments[-1].destination_airport_iata != leg.destination_airport_iata
+        segments[0].origin_airport_iata not in leg.allowed_origin_airports
+        or segments[-1].destination_airport_iata not in leg.allowed_destination_airports
     ):
         return None
     if segments[0].etd_local.date() != leg.departure_date:
@@ -487,6 +486,14 @@ def parse_completed_payload(
                             )
                         )
                         or None
+                    ),
+                    luggage_inclusive_price_cny=_decimal(
+                        _first(
+                            item,
+                            "price.lowestPriceWithFreeLuggage",
+                            "lowestPriceWithFreeLuggage",
+                        ),
+                        "price.lowestPriceWithFreeLuggage",
                     ),
                     source_domain=(
                         str(

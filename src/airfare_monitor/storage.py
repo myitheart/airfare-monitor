@@ -245,6 +245,10 @@ class SQLiteStore:
                 connection.execute(
                     "ALTER TABLE flight_snapshots ADD COLUMN outbound_seat_availability_json TEXT"
                 )
+            if "luggage_inclusive_price_cny" not in columns:
+                connection.execute(
+                    "ALTER TABLE flight_snapshots ADD COLUMN luggage_inclusive_price_cny TEXT"
+                )
             leg_columns = {row[1] for row in connection.execute("PRAGMA table_info(leg_results)")}
             for name in ("return_date", "return_etd_window_start", "return_etd_window_end"):
                 if name not in leg_columns:
@@ -385,8 +389,9 @@ class SQLiteStore:
                     tax_cny, total_price_cny, currency_code, remaining_seats,
                     free_baggage_piece, free_baggage_weight, source_domain, captured_at,
                     connection_airports_json, layover_minutes, return_itinerary_json,
-                    seat_availability_json, outbound_seat_availability_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    seat_availability_json, outbound_seat_availability_json,
+                    luggage_inclusive_price_cny
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run_id,
                     leg.id,
@@ -416,6 +421,7 @@ class SQLiteStore:
                     _return_itinerary_json(flight),
                     _seat_availability_json(flight.seat_availability),
                     _seat_availability_json(flight.outbound_seat_availability),
+                    _decimal_text(flight.luggage_inclusive_price_cny),
                 ),
             )
         for index, preferred in enumerate(leg.preferred_schedules):

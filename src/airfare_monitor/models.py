@@ -85,6 +85,18 @@ class LegConfig:
     return_etd_window: EtdWindow | None = None
     return_direct_only: bool | None = None
     return_max_layover_minutes: int | None = None
+    origin_airports: tuple[str, ...] | None = None
+    destination_airports: tuple[str, ...] | None = None
+
+    @property
+    def allowed_origin_airports(self) -> set[str]:
+        # 聚合码本身必须也算匹配：同程/去哪儿完成态回填的是城市码
+        # （如 BJS），而集合里只有子机场（PEK/PKX）时完成态永远校验不过。
+        return set(self.origin_airports) | {self.origin_airport_iata} if self.origin_airports else {self.origin_airport_iata}
+
+    @property
+    def allowed_destination_airports(self) -> set[str]:
+        return set(self.destination_airports) | {self.destination_airport_iata} if self.destination_airports else {self.destination_airport_iata}
 
     @property
     def is_round_trip(self) -> bool:
@@ -213,6 +225,7 @@ class FlightSnapshot:
     return_itinerary: ItinerarySnapshot | None = None
     seat_availability: SeatAvailability | None = None
     outbound_seat_availability: SeatAvailability | None = None
+    luggage_inclusive_price_cny: Decimal | None = None
     raw_item: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property

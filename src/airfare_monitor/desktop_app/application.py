@@ -6,13 +6,18 @@ import sys
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QUrl, QTimer, Qt
+from PySide6.QtGui import QCursor, QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox, QSystemTrayIcon
+import PySide6
 
 from ..app_paths import AppPaths
+from ..config import load_settings
+from ..models import LegConfig
+from ..search_link import search_url_for
 from ..storage import SQLiteStore
 from ..ui.app_icon import application_icon
+from ..ui.i18n import install_chinese_translations
 from ..ui.main_window import MainWindow
 from ..ui.onboarding import OnboardingDialog
 from .airport_catalog import AirportCatalog
@@ -41,6 +46,7 @@ def validate_ui_runtime(paths: AppPaths) -> str:
     app.setApplicationName("航价守望")
     app.setWindowIcon(application_icon())
     _apply_style(app, paths.resource_root)
+    install_chinese_translations(app, paths.resource_root)
     catalog = AirportCatalog.load(paths.resource_root / "airports.zh.json")
     controller = DesktopController(RouteRepository(paths.routes_path))
     preferences = PreferencesManager(SettingsRepository(paths.settings_path, user_root=paths.user_root))
@@ -70,6 +76,7 @@ def run_desktop(paths: AppPaths, *, start_hidden: bool = False) -> int:
     app.setWindowIcon(application_icon())
     app.setQuitOnLastWindowClosed(False)
     _apply_style(app, paths.resource_root)
+    install_chinese_translations(app, paths.resource_root)
     catalog = AirportCatalog.load(paths.resource_root / "airports.zh.json")
     controller = DesktopController(RouteRepository(paths.routes_path))
     instance = SingleInstance()
@@ -132,6 +139,14 @@ def run_desktop(paths: AppPaths, *, start_hidden: bool = False) -> int:
             )
         return accepted
 
+    def open_search_link(route: LegConfig) -> None:
+        try:
+            settings = load_settings(paths.settings_path, project_root=paths.user_root)
+            QDesktopServices.openUrl(QUrl(search_url_for(route, settings)))
+        except Exception:
+            logger.exception("构造来源网站链接失败")
+            QMessageBox.warning(window, "无法打开来源网站", "构造搜索链接失败，请检查航程的机场与日期设置。")
+
     window = MainWindow(
         controller,
         catalog,
@@ -142,6 +157,7 @@ def run_desktop(paths: AppPaths, *, start_hidden: bool = False) -> int:
         on_resume=coordinator.resume,
         on_retry_leg=retry_if_ready,
         on_open_verification=open_verification_if_ready,
+        on_open_search=open_search_link,
         history_store=history_store,
         outputs_dir=paths.outputs_dir,
     )
@@ -233,19 +249,36 @@ def run_desktop(paths: AppPaths, *, start_hidden: bool = False) -> int:
 
 def _apply_style(app: QApplication, resource_root: Path) -> None:
     stylesheet = resource_root / "styles.qss"
-    if not stylesheet.is_file():
-        stylesheet = Path(__file__).resolve().parents[1] / "ui" / "resources" / "styles.qss"
     if stylesheet.is_file():
         app.setStyleSheet(stylesheet.read_text(encoding="utf-8"))
+
+
+def _native_tray_menu_supported() -> bool:
+    """QTBUG-147449（macOS 27 点击 QSystemTrayIcon 崩溃）的修复版本判断。
+
+    修复 commit 6192d9ed 于 2026-08 合入 6.11 分支，但 v6.11.2 tag 冻结早于
+    该合入，因此修复随 6.11.3 / 6.12 起（含）发布。6.11.2 及更早版本仍会崩，
+    必须使用 activated()+QMenu.popup 的防崩路径。
+    """
+    try:
+        major, minor, patch = (int(part) for part in PySide6.__version__.split(".")[:3])
+    except ValueError:
+        return False
+    if (major, minor) > (6, 11):
+        return True
+    return (major, minor) == (6, 11) and patch >= 3
 
 
 def _create_tray(app: QApplication, window: MainWindow, coordinator: MonitorCoordinator) -> QSystemTrayIcon:
     icon = application_icon()
     tray = QSystemTrayIcon(icon, app)
-    tray.setToolTip("航价守望 · 等待监控（右键打开菜单）")
-    menu = QMenu()
+    menu = QMenu(objectName="trayMenu")
+    # QSS 圆角需要半透明窗口背景配合,否则四角会残留面板底色
+    menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+    # Keep the menu alive without setContextMenu(); otherwise it can be GC'd.
+    tray._menu = menu  # type: ignore[attr-defined]
     open_action = menu.addAction("打开航价守望")
-    open_action.triggered.connect(window.showNormal)
+    open_action.triggered.connect(window.activate)
     run_action = menu.addAction("立即查询")
     run_action.triggered.connect(window._run_now)
     pause_action = menu.addAction("暂停监控")
@@ -271,6 +304,35 @@ def _create_tray(app: QApplication, window: MainWindow, coordinator: MonitorCoor
     menu.addSeparator()
     quit_action = menu.addAction("退出并停止监控")
     quit_action.triggered.connect(app.quit)
-    tray.setContextMenu(menu)
-    tray.activated.connect(lambda reason: window.showNormal() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+
+    if sys.platform == "darwin" and not _native_tray_menu_supported():
+        # macOS 27 + Qt Cocoa（≤6.11.2，QTBUG-147449 未修复版）:
+        # setContextMenu() 会让 Qt 在状态栏菜单路径上对 KitDefined 事件调用
+        # -[NSEvent clickCount] 触发断言崩溃。改由 activated() 弹 QMenu。
+        # 一旦升级到含修复的 PySide6（≥6.11.3 / ≥6.12），自动回到原生菜单。
+        tray.setToolTip("航价守望 · 点击打开菜单")
+
+        def show_menu() -> None:
+            # 再延一拍：不要在 Cocoa 状态栏点击的通知观察者栈内同步弹菜单，
+            # 退出该栈后由事件循环统一处理，进一步避开 AppKit 断言路径。
+            QTimer.singleShot(0, lambda: menu.popup(QCursor.pos()))
+
+        def on_activated(reason: QSystemTrayIcon.ActivationReason) -> None:
+            if reason in {
+                QSystemTrayIcon.ActivationReason.Trigger,
+                QSystemTrayIcon.ActivationReason.DoubleClick,
+                QSystemTrayIcon.ActivationReason.Context,
+                QSystemTrayIcon.ActivationReason.MiddleClick,
+            }:
+                show_menu()
+
+        tray.activated.connect(on_activated)
+    else:
+        tray.setToolTip("航价守望 · 等待监控（右键打开菜单）")
+        tray.setContextMenu(menu)
+        tray.activated.connect(
+            lambda reason: window.activate()
+            if reason == QSystemTrayIcon.ActivationReason.Trigger
+            else None
+        )
     return tray
