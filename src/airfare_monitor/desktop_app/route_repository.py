@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -21,6 +23,25 @@ class RouteRepository:
         validate_enabled_leg_limit(legs)
         payload = {"legs": [_serialize_leg(leg) for leg in legs]}
         atomic_write_yaml(self.path, payload, validate=lambda temporary: load_routes(temporary, allow_empty=True))
+
+    def pause_expired(
+        self, today: date | None = None,
+    ) -> tuple[list[LegConfig], tuple[LegConfig, ...]]:
+        """Persistently pause enabled routes whose outbound date has passed."""
+        current_date = today or date.today()
+        legs = self.load()
+        expired = tuple(leg for leg in legs if leg.enabled and is_route_expired(leg, current_date))
+        if not expired:
+            return legs, ()
+        expired_ids = {leg.id for leg in expired}
+        updated = [replace(leg, enabled=False) if leg.id in expired_ids else leg for leg in legs]
+        self.save(updated)
+        return updated, expired
+
+
+def is_route_expired(leg: LegConfig, today: date | None = None) -> bool:
+    """A trip expires after its outbound travel date, never during that date."""
+    return leg.departure_date < (today or date.today())
 
 
 def _serialize_leg(leg: LegConfig) -> dict[str, object]:
@@ -56,6 +77,10 @@ def _serialize_leg(leg: LegConfig) -> dict[str, object]:
     }
     if leg.max_layover_minutes is not None:
         record["max_layover_minutes"] = leg.max_layover_minutes
+    if leg.origin_airports is not None:
+        record["origin_airports"] = list(leg.origin_airports)
+    if leg.destination_airports is not None:
+        record["destination_airports"] = list(leg.destination_airports)
     if leg.return_date is not None:
         record["return_date"] = leg.return_date.isoformat()
         assert leg.return_etd_window is not None

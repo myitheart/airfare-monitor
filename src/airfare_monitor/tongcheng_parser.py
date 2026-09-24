@@ -48,8 +48,8 @@ def is_completed_tongcheng_payload(payload: object, leg: LegConfig | None = None
     if not complete or leg is None:
         return complete
     return (
-        str(body.get("FlyOffCityCode", "")).upper() == leg.origin_airport_iata
-        and str(body.get("ArriveCityCode", "")).upper() == leg.destination_airport_iata
+        str(body.get("FlyOffCityCode", "")).upper() in leg.allowed_origin_airports
+        and str(body.get("ArriveCityCode", "")).upper() in leg.allowed_destination_airports
         and str(body.get("FlyOffTime", ""))[:10] == leg.departure_date.isoformat()
     )
 
@@ -63,8 +63,8 @@ def is_completed_tongcheng_page_state(state: object, leg: LegConfig | None = Non
     if not complete or leg is None:
         return complete
     return (
-        str(state.get("Departure", "")).upper() == leg.origin_airport_iata
-        and str(state.get("Arrival", "")).upper() == leg.destination_airport_iata
+        str(state.get("Departure", "")).upper() in leg.allowed_origin_airports
+        and str(state.get("Arrival", "")).upper() in leg.allowed_destination_airports
         and str(state.get("DepartureDate", ""))[:10] == leg.departure_date.isoformat()
     )
 
@@ -147,9 +147,9 @@ def parse_tongcheng_payload(
             arrival_city = str(item.get("arrivalCityCode") or "").upper()
             actual_origin = str(item.get("originAirportCode") or "").upper()
             actual_destination = str(item.get("arriveAirportCode") or "").upper()
-            if leg.origin_airport_iata not in {departure_city, actual_origin}:
+            if not ({departure_city, actual_origin} & leg.allowed_origin_airports):
                 continue
-            if leg.destination_airport_iata not in {arrival_city, actual_destination}:
+            if not ({arrival_city, actual_destination} & leg.allowed_destination_airports):
                 continue
             etd = _datetime(item.get("flyOffTime"), "flyOffTime")
             eta = _datetime(item.get("arrivalTime"), "arrivalTime")

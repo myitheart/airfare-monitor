@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 import time
 from dataclasses import replace
 from datetime import datetime
@@ -16,11 +18,20 @@ from .models import LegConfig, LegResult, LegStatus
 from .parser import is_completed_payload, parse_completed_payload
 from .tongcheng_parser import is_completed_tongcheng_page_state, parse_tongcheng_page_state
 
+logger = logging.getLogger(__name__)
+
 LISTEN_TARGET = "/touch/api/inter/wwwsearch"
 _VERIFICATION_MARKERS = ("验证码", "安全验证", "设备验证", "访问过于频繁", "captcha")
 _SEARCH_INPUTS_SELECTOR = "css:#J_searchBox .inter-search input.serTxt"
 _SUGGESTION_SELECTOR = "css:div.m-suggest ul.m-suggest-bd li"
 _SEARCH_BUTTON_SELECTOR = "css:#J_searchBox .inter-search button.m-search-btn"
+_SELECTED_CODE_PATTERN = re.compile(r"\(([A-Z]{3})\)")
+
+
+def _selected_code(value: Any) -> str | None:
+    """Return the IATA-like code the suggestion box actually committed, e.g. 上海(SHA) -> SHA."""
+    match = _SELECTED_CODE_PATTERN.search(str(value or "").upper())
+    return match.group(1) if match else None
 
 
 def build_search_url(template: str, leg: LegConfig) -> str:
@@ -89,6 +100,29 @@ def _response_body(packet: Any) -> dict[str, Any] | None:
     return None
 
 
+_GRACEFUL_CHROMIUM_CACHE: dict[type, type] = {}
+
+
+def _graceful_chromium_cls(chromium_cls: type) -> type:
+    """返回把强杀降级为优雅关闭的 Chromium 子类（按基类缓存）。"""
+    cached = _GRACEFUL_CHROMIUM_CACHE.get(chromium_cls)
+    if cached is None:
+
+        def quit(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            force = kwargs.get("force") if "force" in kwargs else (args[1] if len(args) >= 2 else False)
+            if force:
+                logger.warning("拦截浏览器强杀请求，改为优雅关闭（headless 状态不一致的复用场景）")
+                if "force" in kwargs:
+                    kwargs["force"] = False
+                elif len(args) >= 2:
+                    args = args[:1] + (False,) + args[2:]
+            return chromium_cls.quit(self, *args, **kwargs)
+
+        cached = type("GracefulChromium", (chromium_cls,), {"quit": quit})
+        _GRACEFUL_CHROMIUM_CACHE[chromium_cls] = cached
+    return cached
+
+
 class QunarBrowserSession:
     """Own one Chromium instance and select Qunar or Tongcheng per route."""
 
@@ -112,7 +146,10 @@ class QunarBrowserSession:
         options.set_local_port(self.settings.local_port)
         options.set_user_data_path(str(self.settings.user_data_path))
         options.headless(self.settings.headless)
-        self.browser = Chromium(addr_or_opts=options)
+        # 复用分支雷：DrissionPage 在「端口上已有浏览器且 headless 状态不一致」时
+        # 会 quit(3, True) 走 psutil 强杀 Chrome（macOS App Management 一级触发器）。
+        # 子类把任何 force 关闭降级为优雅关闭（CDP Browser.close）。
+        self.browser = _graceful_chromium_cls(Chromium)(addr_or_opts=options)
         self.tab = self.browser.latest_tab
         self.tab.set.timeouts(
             base=self.settings.search_completion_timeout_seconds,
@@ -163,11 +200,15 @@ class QunarBrowserSession:
             raise CollectionError(f"{code} 未出现机场/城市联想项")
         choices[0].click()
         deadline = time.monotonic() + 3
-        expected = f"({code})"
-        while time.monotonic() < deadline and expected not in str(input_element.value or "").upper():
+        while time.monotonic() < deadline and _selected_code(input_element.value) is None:
             time.sleep(0.1)
-        if expected not in str(input_element.value or "").upper():
+        selected = _selected_code(input_element.value)
+        if selected is None:
             raise CollectionError(f"选择第一条联想后未确认代码 {code}")
+        if selected != code:
+            # 去哪儿会把部分机场聚合为城市代码（如 PVG→SHA、NRT→TYO、LHR→LON），
+            # 联想框回填的是聚合代码。这不算失败：结果仍按真实机场解析与记录。
+            logger.info("%s 在去哪儿联想中被聚合为城市代码 %s，按该城市继续查询", code, selected)
 
     def _choose_departure_date(self, input_element: Any, leg: LegConfig) -> None:
         input_element.click()

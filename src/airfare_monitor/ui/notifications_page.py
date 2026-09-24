@@ -208,7 +208,7 @@ class NotificationsPage(QWidget):
         security_layout.addWidget(NotificationIcon("shield"))
         security_copy = QVBoxLayout()
         security_copy.setSpacing(2)
-        security_copy.addWidget(QLabel("授权码保存在 Windows 系统凭据中", objectName="credentialTitle"))
+        security_copy.addWidget(QLabel("授权码保存在系统安全凭据中（Windows 凭据管理器 / macOS 钥匙串）", objectName="credentialTitle"))
         security_copy.addWidget(QLabel("航价守望不会把授权码写入 YAML、日志、诊断文件或安装包。", objectName="notificationSubtitle", wordWrap=True))
         security_layout.addLayout(security_copy, 1)
         mail_card.layout().addWidget(security_note)

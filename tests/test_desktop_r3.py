@@ -148,7 +148,22 @@ class DesktopR3Tests(unittest.TestCase):
         report = RunReport("run", now, now, RunStatus.SUCCESS, [success], set())
         self.assertIsNone(alert_for_event(CycleFinished(report, "report.xlsx", 1)))
         report.threshold_confirmed_leg_ids.add(leg.id)
-        self.assertEqual(alert_for_event(CycleFinished(report, "report.xlsx", 1)).target_page, 0)
+        low_price = alert_for_event(
+            CycleFinished(report, "report.xlsx", 1),
+            low_price_details=[{
+                "route_code": "SHA → XMN",
+                "actual_price_cny": "880",
+                "threshold_price_cny": "1000",
+                "savings_cny": "120",
+            }],
+        )
+        self.assertEqual(low_price.target_page, 0)
+        self.assertIn("SHA → XMN", low_price.title)
+        self.assertIn("¥880", low_price.message)
+        self.assertIn("¥1,000", low_price.message)
+        self.assertIsNone(alert_for_event(
+            CycleFinished(report, "report.xlsx", 1), low_price_details=[]
+        ))
         self.assertEqual(alert_for_event(ManualAttentionRequested(leg.id, "sensitive" )).target_page, 4)
         self.assertEqual(alert_for_event(MailDeliveryFailed("AuthenticationError")).target_page, 3)
 

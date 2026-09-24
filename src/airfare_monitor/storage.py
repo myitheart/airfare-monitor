@@ -144,6 +144,19 @@ def _decimal_text(value: Decimal | None) -> str | None:
     return str(value) if value is not None else None
 
 
+def _app_event_row(row: sqlite3.Row) -> dict[str, Any]:
+    item = dict(row)
+    raw_details = item.pop("details_json", None)
+    if raw_details:
+        try:
+            details = json.loads(str(raw_details))
+        except (TypeError, ValueError):
+            details = None
+        if isinstance(details, dict):
+            item["details"] = details
+    return item
+
+
 def _seat_availability_mapping(value: Any) -> dict[str, Any] | None:
     if value is None:
         return None
@@ -244,6 +257,10 @@ class SQLiteStore:
             if "outbound_seat_availability_json" not in columns:
                 connection.execute(
                     "ALTER TABLE flight_snapshots ADD COLUMN outbound_seat_availability_json TEXT"
+                )
+            if "luggage_inclusive_price_cny" not in columns:
+                connection.execute(
+                    "ALTER TABLE flight_snapshots ADD COLUMN luggage_inclusive_price_cny TEXT"
                 )
             leg_columns = {row[1] for row in connection.execute("PRAGMA table_info(leg_results)")}
             for name in ("return_date", "return_etd_window_start", "return_etd_window_end"):
@@ -385,8 +402,9 @@ class SQLiteStore:
                     tax_cny, total_price_cny, currency_code, remaining_seats,
                     free_baggage_piece, free_baggage_weight, source_domain, captured_at,
                     connection_airports_json, layover_minutes, return_itinerary_json,
-                    seat_availability_json, outbound_seat_availability_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    seat_availability_json, outbound_seat_availability_json,
+                    luggage_inclusive_price_cny
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run_id,
                     leg.id,
@@ -416,6 +434,7 @@ class SQLiteStore:
                     _return_itinerary_json(flight),
                     _seat_availability_json(flight.seat_availability),
                     _seat_availability_json(flight.outbound_seat_availability),
+                    _decimal_text(flight.luggage_inclusive_price_cny),
                 ),
             )
         for index, preferred in enumerate(leg.preferred_schedules):
@@ -537,9 +556,21 @@ class SQLiteStore:
     def recent_app_events(self, *, limit: int = 30) -> list[dict[str, Any]]:
         with closing(self.connect()) as connection:
             rows = connection.execute(
-                "SELECT occurred_at, event_type, severity, leg_id, message FROM app_events ORDER BY id DESC LIMIT ?", (limit,)
+                "SELECT occurred_at, event_type, severity, leg_id, message, details_json "
+                "FROM app_events ORDER BY id DESC LIMIT ?",
+                (limit,),
             ).fetchall()
-        return [dict(row) for row in rows]
+        return [_app_event_row(row) for row in rows]
+
+    def latest_app_event(self, event_type: str, leg_id: str) -> dict[str, Any] | None:
+        with closing(self.connect()) as connection:
+            row = connection.execute(
+                "SELECT occurred_at, event_type, severity, leg_id, message, details_json "
+                "FROM app_events WHERE event_type = ? AND leg_id = ? "
+                "ORDER BY id DESC LIMIT 1",
+                (event_type, leg_id),
+            ).fetchone()
+        return _app_event_row(row) if row else None
 
     def latest_flight_candidates(self, leg_id: str) -> dict[str, Any] | None:
         """Return the latest complete successful result and its stored candidates."""

@@ -7,6 +7,13 @@ from dataclasses import dataclass, field
 
 SERVICE_NAME = "AirfareMonitor/SMTP"
 
+# 操作系统级加密存储后端：Windows 凭据管理器 / macOS 钥匙串。
+# 其他后端（如明文/文件后端）必须拒绝，邮件凭据不允许降级。
+_SECURE_BACKEND_PREFIXES = (
+    "keyring.backends.Windows",
+    "keyring.backends.macOS",
+)
+
 
 class CredentialStoreError(RuntimeError):
     pass
@@ -18,8 +25,9 @@ class CredentialStore:
         import keyring
 
         backend = keyring.get_keyring()
-        if not type(backend).__module__.startswith("keyring.backends.Windows"):
-            raise CredentialStoreError("未找到 Windows 凭据安全存储；邮件设置不会降级为明文")
+        module = type(backend).__module__
+        if not module.startswith(_SECURE_BACKEND_PREFIXES):
+            raise CredentialStoreError("未找到系统凭据安全存储（Windows 凭据管理器 / macOS 钥匙串）；邮件设置不会降级为明文")
         return keyring
 
     def has_secret(self, username: str) -> bool:
@@ -32,7 +40,7 @@ class CredentialStore:
         except CredentialStoreError:
             raise
         except Exception as exc:
-            raise CredentialStoreError("Windows 凭据安全存储不可用") from exc
+            raise CredentialStoreError("系统凭据安全存储不可用") from exc
 
     def save_secret(self, username: str, secret: str) -> None:
         if not username.strip() or not secret:
@@ -43,7 +51,7 @@ class CredentialStore:
         except CredentialStoreError:
             raise
         except Exception as exc:
-            raise CredentialStoreError("无法保存 SMTP 授权码到 Windows 凭据安全存储") from exc
+            raise CredentialStoreError("无法保存 SMTP 授权码到系统凭据安全存储") from exc
 
     def delete_secret(self, username: str) -> None:
         try:

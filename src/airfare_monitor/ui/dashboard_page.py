@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from ..config import MAX_ENABLED_LEGS
 from ..desktop_app.view_data import DashboardData
+from ..desktop_app.route_repository import is_route_expired
 from ..market import resolve_market
 from ..models import LegConfig
 from .aircraft_assets import aircraft_mark_pixmap
@@ -63,39 +64,28 @@ class DashboardPage(QWidget):
         title_row.setSpacing(13)
         title_row.addWidget(_icon_label("sun", "#f6a515", "transparent", 52), alignment=Qt.AlignmentFlag.AlignTop)
         heading = QVBoxLayout()
-        heading.addWidget(QLabel(_greeting(), objectName="pageTitle"))
-        heading.addWidget(QLabel("航价守望与您一起，发现更好的出行时机。", objectName="muted"))
         heading.setSpacing(4)
-        title_row.addLayout(heading)
-        title_row.addStretch()
+        heading.addWidget(QLabel(_greeting(), objectName="pageTitle"))
+        self.runtime_detail_label = QLabel("设置航程后可启动监控", objectName="muted", wordWrap=True)
+        heading.addWidget(self.runtime_detail_label)
+        title_row.addLayout(heading, 1)
         title_row.setSpacing(10)
-        self.runtime_control = QFrame(objectName="dashboardStatus")
-        self.runtime_control.setFixedSize(108, 40)
-        runtime_layout = QHBoxLayout(self.runtime_control)
-        runtime_layout.setContentsMargins(13, 0, 13, 0)
-        runtime_layout.setSpacing(7)
-        runtime_layout.addWidget(QLabel("●", objectName="dashboardStatusDot"))
-        self.runtime_label = QLabel("等待配置", objectName="dashboardStatusText", alignment=Qt.AlignmentFlag.AlignCenter)
-        runtime_layout.addWidget(self.runtime_label, 1)
-        title_row.addWidget(self.runtime_control, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.pause_button = QPushButton("暂停监控", objectName="dashboardAction")
-        self.pause_button.setFixedSize(112, 40)
+        self.pause_button.setFixedSize(112, 36)
         self.pause_button.setIcon(_plain_icon("pause", "#176be3"))
         self.pause_button.clicked.connect(toggle_pause)
         self.run_button = QPushButton("立即查询", objectName="dashboardAction")
-        self.run_button.setFixedSize(116, 40)
+        self.run_button.setFixedSize(116, 36)
         self.run_button.setIcon(_plain_icon("search", "#176be3"))
         self.run_button.clicked.connect(run_now)
         self.add_button = QPushButton("添加航程", objectName="dashboardPrimaryAction")
-        self.add_button.setFixedSize(118, 40)
+        self.add_button.setFixedSize(118, 36)
         self.add_button.setIcon(_plain_icon("plus", "#ffffff"))
         self.add_button.clicked.connect(open_new_route)
-        title_row.addWidget(self.pause_button, alignment=Qt.AlignmentFlag.AlignVCenter)
-        title_row.addWidget(self.run_button, alignment=Qt.AlignmentFlag.AlignVCenter)
-        title_row.addWidget(self.add_button, alignment=Qt.AlignmentFlag.AlignVCenter)
+        title_row.addWidget(self.pause_button, alignment=Qt.AlignmentFlag.AlignTop)
+        title_row.addWidget(self.run_button, alignment=Qt.AlignmentFlag.AlignTop)
+        title_row.addWidget(self.add_button, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addLayout(title_row)
-        self.runtime_detail_label = QLabel("设置航程后可启动监控", objectName="muted", wordWrap=True)
-        layout.addWidget(self.runtime_detail_label)
 
         metrics = QHBoxLayout()
         metrics.setSpacing(12)
@@ -161,10 +151,23 @@ class DashboardPage(QWidget):
 
     def set_data(self, data: DashboardData) -> None:
         self._data = data
+        minimum_route = next(
+            (route for route in self._routes if route.id == data.today_minimum_leg_id),
+            None,
+        )
+        minimum_detail = "今日已完成查询中的最低 CNY 含税总价"
+        if minimum_route is not None:
+            arrow = "⇄" if minimum_route.is_round_trip else "→"
+            minimum_detail = (
+                f"{minimum_route.origin_airport_iata} {arrow} "
+                f"{minimum_route.destination_airport_iata}"
+            )
+            if data.today_minimum_captured_at is not None:
+                minimum_detail += f" · {_friendly_time(data.today_minimum_captured_at)}"
         _set_metric(
             self.today_card,
             _price_text(data.today_minimum_cny) if data.today_minimum_cny is not None else "暂无数据",
-            "今日已完成查询中的最低 CNY 含税总价",
+            minimum_detail,
         )
         _set_metric(
             self.success_card,
@@ -186,9 +189,13 @@ class DashboardPage(QWidget):
     def set_runtime(self, title: str, detail: str) -> None:
         self._runtime_title = title
         self._runtime_detail = detail
-        suffix = f" · 下次查询 {_friendly_time(self._next_run)}" if self._next_run else ""
-        self.runtime_label.setText(title)
-        self.runtime_detail_label.setText(f"{detail}{suffix}")
+        next_already_shown = "下次" in detail
+        suffix = (
+            f" · 下次查询 {_friendly_time(self._next_run)}"
+            if self._next_run and not next_already_shown
+            else ""
+        )
+        self.runtime_detail_label.setText(f"{title} · {detail}{suffix}")
 
     def set_runtime_message(self, message: str) -> None:
         self.set_runtime("正在准备", message)
@@ -244,8 +251,16 @@ class DashboardPage(QWidget):
                 objectName="routeMeta", wordWrap=True,
             ))
             top.addLayout(route_copy, 1)
-            status = _dashboard_route_status(route, overview.status if overview else None)
-            top.addWidget(QLabel(status, objectName="activePill" if status == "运行中" else "pausedPill"))
+            status = _dashboard_route_status(
+                route,
+                overview.status if overview else None,
+                overview.threshold_confirmed if overview else False,
+            )
+            status_style = {
+                "运行中": "activePill",
+                "低价命中": "lowPricePill",
+            }.get(status, "pausedPill")
+            top.addWidget(QLabel(status, objectName=status_style))
             top.addWidget(QLabel("•••", objectName="moreMenu"))
             card_layout.addLayout(top)
             card_layout.addWidget(_route_divider())
@@ -295,6 +310,11 @@ class DashboardPage(QWidget):
         for event in events[:8]:
             occurred = _parse_time(event.get("occurred_at"))
             event_type = str(event.get("event_type", ""))
+            if event_type == "low_price_confirmed":
+                low_price_card = self._low_price_event_card(event, occurred)
+                if low_price_card is not None:
+                    self.event_cards.addWidget(low_price_card)
+                    continue
             kind, color, background = _event_icon(event_type, str(event.get("severity", "info")))
             entry = QFrame(objectName="timelineEntry")
             entry_layout = QHBoxLayout(entry)
@@ -308,6 +328,68 @@ class DashboardPage(QWidget):
             copy.addWidget(QLabel(str(event.get("message", "")), objectName="timelineMessage", wordWrap=True))
             entry_layout.addLayout(copy, 1)
             self.event_cards.addWidget(entry)
+
+    def _low_price_event_card(
+        self,
+        event: dict[str, object],
+        occurred: datetime | None,
+    ) -> QFrame | None:
+        details = event.get("details")
+        if not isinstance(details, dict):
+            return None
+        route_code = str(details.get("route_code") or "航程")
+        route_name = str(details.get("route_name") or "")
+        actual = _price_text(_event_decimal(details.get("actual_price_cny")))
+        threshold = _price_text(_event_decimal(details.get("threshold_price_cny")))
+        savings_value = _event_decimal(details.get("savings_cny"))
+        comparison = (
+            f"低于心理价 {_price_text(savings_value)}"
+            if savings_value is not None and savings_value > 0 else "已达到心理价"
+        )
+
+        entry = QFrame(objectName="lowPriceTimelineEntry")
+        entry_layout = QHBoxLayout(entry)
+        entry_layout.setContentsMargins(10, 10, 10, 9)
+        entry_layout.setSpacing(9)
+        entry_layout.addWidget(
+            _icon_label("tag", "#14986a", "#dcf7eb", 36),
+            alignment=Qt.AlignmentFlag.AlignTop,
+        )
+        copy = QVBoxLayout()
+        copy.setSpacing(3)
+        headline = QHBoxLayout()
+        headline.setSpacing(7)
+        headline.addWidget(QLabel(route_code, objectName="lowPriceRoute"))
+        headline.addStretch()
+        headline.addWidget(QLabel(actual, objectName="lowPriceValue"))
+        copy.addLayout(headline)
+        if route_name:
+            copy.addWidget(QLabel(f"低价命中 · {route_name}", objectName="lowPriceMeta"))
+        copy.addWidget(QLabel(
+            f"心理价 {threshold} · {comparison}",
+            objectName="lowPriceMeta",
+            wordWrap=True,
+        ))
+        footer = QHBoxLayout()
+        footer.setSpacing(6)
+        footer.addWidget(QLabel(
+            _friendly_time(occurred) if occurred else "刚刚",
+            objectName="timelineTime",
+        ))
+        footer.addStretch()
+        route = next(
+            (item for item in self._routes if item.id == str(event.get("leg_id") or "")),
+            None,
+        )
+        if route is not None:
+            action = QPushButton("查看候选  →", objectName="lowPriceEventAction")
+            action.clicked.connect(
+                lambda checked=False, item=route: self._open_results(item)
+            )
+            footer.addWidget(action)
+        copy.addLayout(footer)
+        entry_layout.addLayout(copy, 1)
+        return entry
 
     def _support_offer(self, events: tuple[dict[str, object], ...]) -> QFrame:
         card = QFrame(objectName="supportPromptCard")
@@ -550,6 +632,8 @@ def _event_icon(event_type: str, severity: str) -> tuple[str, str, str]:
         return "search", "#176be3", "#e6f0ff"
     if event_type in {"routes_changed", "settings_changed"}:
         return "document", "#176be3", "#e6f0ff"
+    if event_type == "routes_expired":
+        return "clock", "#e69218", "#fff1d9"
     if event_type == "low_price_confirmed":
         return "tag", "#176be3", "#e6f0ff"
     if severity in {"warning", "error"}:
@@ -557,13 +641,21 @@ def _event_icon(event_type: str, severity: str) -> tuple[str, str, str]:
     return "clock", "#5f789e", "#edf2f8"
 
 
-def _dashboard_route_status(route: LegConfig, status: str | None) -> str:
+def _dashboard_route_status(
+    route: LegConfig,
+    status: str | None,
+    threshold_confirmed: bool = False,
+) -> str:
+    if is_route_expired(route):
+        return "已过期"
     if not route.enabled:
         return "已暂停"
     if status == "manual_attention":
         return "需要处理"
     if status == "failed":
         return "查询失败"
+    if threshold_confirmed:
+        return "低价命中"
     return "运行中"
 
 
@@ -581,6 +673,13 @@ def _set_metric(card: QFrame, value: str, detail: str) -> None:
 
 def _price_text(value: Decimal | None) -> str:
     return "—" if value is None else f"¥{value:,.0f}"
+
+
+def _event_decimal(value: object) -> Decimal | None:
+    try:
+        return Decimal(str(value)) if value not in (None, "") else None
+    except (InvalidOperation, ValueError):
+        return None
 
 
 def _delta_text(value: Decimal | None) -> str:

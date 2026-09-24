@@ -31,6 +31,7 @@ class RuntimePreferencesForm(QWidget):
         settings: DesktopSettings,
         *,
         show_redetect: bool = True,
+        show_launch_to_tray: bool = True,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
@@ -42,7 +43,8 @@ class RuntimePreferencesForm(QWidget):
             self.interval_combo.addItem(f"{minutes} 分钟", minutes)
         self.show_browser = QCheckBox("显示浏览器运行过程", objectName="runtimeOption")
         self.desktop_notifications = QCheckBox("开启桌面通知", objectName="runtimeOption")
-        self.autostart = QCheckBox("登录 Windows 后自动启动", objectName="runtimeOption")
+        self.autostart = QCheckBox("登录系统后自动启动", objectName="runtimeOption")
+        self.launch_to_tray = QCheckBox("仅驻留菜单栏，隐藏 Dock 图标", objectName="runtimeOption")
         self.browser_status = QLabel(objectName="muted", wordWrap=True)
 
         browser_row = QHBoxLayout()
@@ -60,13 +62,17 @@ class RuntimePreferencesForm(QWidget):
         form.setHorizontalSpacing(14)
         form.setVerticalSpacing(12)
         form.setColumnStretch(2, 1)
-        rows = (
+        # onboarding 不暴露托盘模式：新用户首启就“应用消失只剩菜单栏图标”
+        # 容易被当成崩溃；该开关留给系统状态页。
+        rows = [
             ("link", "用于查询的浏览器", _layout_widget(browser_row)),
             ("clock", "自动查询间隔", self.interval_combo),
             ("desktop", "浏览器窗口", self.show_browser),
             ("bell", "价格提醒", self.desktop_notifications),
             ("power", "开机启动", self.autostart),
-        )
+        ]
+        if show_launch_to_tray:
+            rows.append(("status", "托盘模式", self.launch_to_tray))
         for row, (kind, title, control) in enumerate(rows):
             form.addWidget(_icon_label(kind, "#4b70a3", "transparent", 26), row, 0)
             form.addWidget(QLabel(title, objectName="runtimeFieldLabel"), row, 1)
@@ -119,6 +125,7 @@ class RuntimePreferencesForm(QWidget):
         self.show_browser.setChecked(settings.show_browser)
         self.desktop_notifications.setChecked(settings.desktop_notifications)
         self.autostart.setChecked(settings.autostart)
+        self.launch_to_tray.setChecked(settings.launch_to_tray)
 
     def values(self, *, onboarding_completed: bool | None = None) -> DesktopSettings:
         candidate = self.browser_combo.currentData()
@@ -131,6 +138,7 @@ class RuntimePreferencesForm(QWidget):
             show_browser=self.show_browser.isChecked(),
             desktop_notifications=self.desktop_notifications.isChecked(),
             autostart=self.autostart.isChecked(),
+            launch_to_tray=self.launch_to_tray.isChecked(),
             onboarding_completed=completed,
         )
 

@@ -2,12 +2,12 @@
 
 一个面向个人旅行者的 Windows 航价监控工具。安装后可以直接在桌面界面中选择机场、设置日期和心理价位，并持续查看 CNY 含税最低价、历史变化和同一轮查询中的全部航班候选。
 
-> 当前版本：v0.6.17 · Windows 10/11 x64 · 个人工具 · 每台设备最多同时启用 10 条航程
+> 当前版本：v0.7.4 · Windows 10/11 x64 / macOS 12+ · 个人工具 · 每台设备最多同时启用 10 条航程
 
 ## 下载安装
 
-- [下载航价守望 v0.6.17 安装包](https://github.com/myitheart/airfare-monitor/releases/download/v0.6.17/AirfareMonitorSetup-0.6.17.exe)
-- [下载 SHA-256 校验文件](https://github.com/myitheart/airfare-monitor/releases/download/v0.6.17/AirfareMonitorSetup-0.6.17.exe.sha256)
+- [下载航价守望 v0.6.18 安装包](https://github.com/myitheart/airfare-monitor/releases/download/v0.6.18/AirfareMonitorSetup-0.6.18.exe)
+- [下载 SHA-256 校验文件](https://github.com/myitheart/airfare-monitor/releases/download/v0.6.18/AirfareMonitorSetup-0.6.18.exe.sha256)
 - [查看全部 GitHub Releases](https://github.com/myitheart/airfare-monitor/releases)
 
 当前安装包尚未进行商业代码签名，因此 Windows 可能显示“未知发布者”或 SmartScreen 提示。请确认下载地址属于本仓库，并在安装前核对 SHA-256。

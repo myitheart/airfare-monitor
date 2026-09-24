@@ -31,6 +31,8 @@ class AirportRecord:
     supported_sources: tuple[str, ...]
     verified_at: str | None
     enabled: bool
+    is_city: bool = False
+    child_airports: tuple[str, ...] = ()
 
     @property
     def display_text(self) -> str:
@@ -38,10 +40,17 @@ class AirportRecord:
 
 
 class AirportCatalog:
-    def __init__(self, version: int, records: tuple[AirportRecord, ...]):
+    def __init__(
+        self,
+        version: int,
+        records: tuple[AirportRecord, ...],
+        cities: tuple[AirportRecord, ...] = (),
+    ):
         self.version = version
         self.records = records
+        self.cities = cities
         self._enabled = tuple(record for record in records if record.enabled)
+        self._enabled_cities = tuple(record for record in cities if record.enabled)
 
     @classmethod
     def load(cls, path: str | Path) -> "AirportCatalog":
@@ -100,12 +109,72 @@ class AirportCatalog:
                 )
             )
             seen.add(code)
-        return cls(version, tuple(records))
 
-    def search(self, query: str, *, limit: int = 20) -> list[AirportRecord]:
+        raw_cities = payload.get("cities", [])
+        cities: list[AirportRecord] = []
+        seen_cities: set[str] = set()
+        for index, item in enumerate(raw_cities, start=1):
+            if not isinstance(item, dict):
+                raise AirportCatalogError(f"城市聚合目录第 {index} 项必须是对象")
+            code = str(item.get("city_iata", "")).upper().strip()
+            if not _IATA.fullmatch(code):
+                raise AirportCatalogError(f"城市聚合目录第 {index} 项 city_iata 无效：{code!r}")
+            if code in seen_cities:
+                raise AirportCatalogError(f"城市聚合目录 city_iata 重复：{code}")
+            child_airports = item.get("child_airports", [])
+            if not isinstance(child_airports, list) or not child_airports:
+                raise AirportCatalogError(f"城市聚合 {code} 必须包含非空 child_airports 列表")
+            for child in child_airports:
+                if str(child).upper().strip() not in seen:
+                    raise AirportCatalogError(f"城市聚合 {code} 的子机场 {child} 不在已知机场目录中")
+            display = str(item.get("display_name_zh", "")).strip()
+            city = str(item.get("city_name_zh", "")).strip()
+            country = str(item.get("country_code", "")).upper().strip()
+            aliases = item.get("aliases", [])
+            sources = item.get("supported_sources", ["qunar", "tongcheng"])
+            cities.append(
+                AirportRecord(
+                    airport_iata=code,
+                    display_name_zh=display,
+                    city_name_zh=city,
+                    airport_name_zh=_optional_text(item.get("description_zh")),
+                    display_name_en=_optional_text(item.get("display_name_en")),
+                    country_code=country,
+                    aliases=tuple(value.strip() for value in aliases),
+                    supported_sources=tuple(sources),
+                    verified_at=None,
+                    enabled=bool(item.get("enabled", True)),
+                    is_city=True,
+                    child_airports=tuple(str(c).upper().strip() for c in child_airports),
+                )
+            )
+            seen_cities.add(code)
+        return cls(version, tuple(records), tuple(cities))
+
+    def search(self, query: str, *, limit: int = 20, include_cities: bool = False) -> list[AirportRecord]:
         normalized = _normalize(query)
         if not normalized:
-            return list(self._enabled[:limit])
+            base = list(self._enabled_cities if include_cities else ()) + list(self._enabled)
+            return base[:limit]
+
+        city_results: list[AirportRecord] = []
+        if include_cities:
+            city_ranked: list[tuple[int, AirportRecord]] = []
+            for record in self._enabled_cities:
+                candidates = (record.airport_iata, record.display_name_zh, record.city_name_zh, *record.aliases)
+                normalized_candidates = tuple(_normalize(value) for value in candidates)
+                if normalized == _normalize(record.airport_iata) or normalized == _normalize(record.city_name_zh):
+                    score = 0
+                elif any(value.startswith(normalized) for value in normalized_candidates):
+                    score = 1
+                elif any(normalized in value for value in normalized_candidates):
+                    score = 2
+                else:
+                    continue
+                city_ranked.append((score, record))
+            city_ranked.sort(key=lambda pair: (pair[0], pair[1].display_name_zh, pair[1].airport_iata))
+            city_results = [record for _, record in city_ranked]
+
         ranked: list[tuple[int, AirportRecord]] = []
         for record in self._enabled:
             candidates = (record.airport_iata, record.display_name_zh, record.city_name_zh, *record.aliases)
@@ -120,11 +189,19 @@ class AirportCatalog:
                 continue
             ranked.append((score, record))
         ranked.sort(key=lambda pair: (pair[0], pair[1].display_name_zh, pair[1].airport_iata))
-        return [record for _, record in ranked[:limit]]
+        airport_results = [record for _, record in ranked]
+        return (city_results + airport_results)[:limit]
 
-    def by_iata(self, airport_iata: str) -> AirportRecord | None:
+    def by_iata(self, airport_iata: str, *, allow_city: bool = False) -> AirportRecord | None:
         normalized = airport_iata.upper().strip()
-        return next((record for record in self.records if record.airport_iata == normalized), None)
+        record = next((r for r in self.records if r.airport_iata == normalized), None)
+        if record or not allow_city:
+            return record
+        return next((c for c in self.cities if c.airport_iata == normalized), None)
+
+    def by_city(self, city_iata: str) -> AirportRecord | None:
+        normalized = city_iata.upper().strip()
+        return next((c for c in self.cities if c.airport_iata == normalized), None)
 
 
 def _normalize(value: str) -> str:

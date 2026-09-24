@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from dataclasses import replace
 from datetime import date, datetime, time
 from decimal import Decimal
 from pathlib import Path
@@ -9,13 +10,14 @@ from tempfile import TemporaryDirectory
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from airfare_monitor.app_paths import AppPaths
 from airfare_monitor.desktop_app.airport_catalog import AirportCatalog
 from airfare_monitor.desktop_app.controller import DesktopController
 from airfare_monitor.desktop_app.event_journal import AppEventJournal
-from airfare_monitor.desktop_app.events import FatalError
+from airfare_monitor.desktop_app.events import CycleFinished, FatalError, RoutesExpired
 from airfare_monitor.desktop_app.route_repository import RouteRepository
 from airfare_monitor.desktop_app.view_data import load_dashboard_data
 from airfare_monitor.models import (
@@ -23,8 +25,9 @@ from airfare_monitor.models import (
 )
 from airfare_monitor.storage import SQLiteStore
 from airfare_monitor.ui.app_icon import application_icon
+from airfare_monitor.ui.dashboard_page import DashboardPage
 from airfare_monitor.ui.flight_results_page import FlightResultsPage, filter_and_sort_candidates
-from airfare_monitor.ui.history_page import HistoryPage, price_segments
+from airfare_monitor.ui.history_page import HistoryPage, PriceChart, _chart_tooltip_text, price_segments
 from airfare_monitor.ui.main_window import RoutesPage
 from airfare_monitor.ui.route_wizard import RouteWizard
 
@@ -49,6 +52,39 @@ class DesktopR2Tests(unittest.TestCase):
             price_segments(rows),
             [[(0, Decimal("1500")), (1, Decimal("1450"))], [(3, Decimal("1420"))]],
         )
+
+    def test_price_chart_tooltip_shows_capture_time_and_price(self):
+        row = {
+            "captured_at": "2026-09-17T19:27:35",
+            "status": "success",
+            "minimum_total_price_cny": "3273",
+        }
+        self.assertEqual(
+            _chart_tooltip_text(row, Decimal("3273")),
+            "采集时间：2026-09-17 19:27:35\n含税总价：¥3,273",
+        )
+
+    def test_price_chart_tooltip_shows_failed_query_status(self):
+        row = {
+            "captured_at": "2026-09-17T15:37:00",
+            "status": "manual_attention",
+            "minimum_total_price_cny": None,
+        }
+        self.assertEqual(
+            _chart_tooltip_text(row, None),
+            "采集时间：2026-09-17 15:37:00\n查询结果：需要人工处理",
+        )
+
+    def test_price_chart_hover_uses_nearest_point_within_hit_radius(self):
+        chart = PriceChart()
+        first = {"status": "success", "captured_at": "2026-09-17T19:00:00"}
+        second = {"status": "success", "captured_at": "2026-09-17T19:30:00"}
+        chart._hit_points = [
+            (0, QPointF(20, 20), first, Decimal("3200")),
+            (1, QPointF(40, 20), second, Decimal("3300")),
+        ]
+        self.assertEqual(chart._nearest_hit(QPointF(38, 22))[0], 1)
+        self.assertIsNone(chart._nearest_hit(QPointF(70, 70)))
 
     def test_application_icon_contains_branded_tray_sizes(self):
         icon = application_icon()
@@ -78,13 +114,57 @@ class DesktopR2Tests(unittest.TestCase):
             buttons = page.cards[0].findChildren(QPushButton)
             self.assertEqual(
                 {button.text() for button in buttons},
-                {"编辑", "暂停", "复制", "删除", "查看候选"},
+                {"编辑", "暂停", "复制", "删除", "查看候选", "在去哪儿打开"},
             )
             labels = {label.text() for label in page.cards[0].findChildren(QLabel)}
             self.assertIn("PVG", labels)
             self.assertIn("KUL", labels)
             self.assertIn("国际/跨境 · 去哪儿", labels)
             page.close()
+
+    def test_expired_route_is_labeled_and_guides_user_to_edit_date(self):
+        with TemporaryDirectory() as temp:
+            paths = _paths(temp)
+            paths.initialize()
+            controller = DesktopController(
+                RouteRepository(paths.routes_path),
+                today=lambda: date(2026, 9, 21),
+            )
+            catalog = AirportCatalog.load(paths.resource_root / "airports.zh.json")
+            page = RoutesPage(controller, catalog)
+            expired = replace(
+                _route("expired-route"),
+                enabled=False,
+                departure_date=date(2026, 9, 20),
+            )
+
+            page.refresh([expired])
+
+            labels = {label.text() for label in page.cards[0].findChildren(QLabel)}
+            buttons = {button.text() for button in page.cards[0].findChildren(QPushButton)}
+            self.assertIn("已过期", labels)
+            self.assertIn("出发日期已过，监控已自动暂停", labels)
+            self.assertIn("编辑日期", buttons)
+            self.assertNotIn("启用", buttons)
+            page.close()
+
+    def test_controller_rejects_enabling_an_expired_route(self):
+        with TemporaryDirectory() as temp:
+            paths = _paths(temp)
+            paths.initialize()
+            repository = RouteRepository(paths.routes_path)
+            expired = replace(
+                _route("expired-route"),
+                enabled=False,
+                departure_date=date(2026, 9, 20),
+            )
+            repository.save([expired])
+            controller = DesktopController(repository, today=lambda: date(2026, 9, 21))
+
+            with self.assertRaisesRegex(ValueError, "编辑航程日期"):
+                controller.toggle_route(expired.id, True)
+
+            self.assertFalse(repository.load()[0].enabled)
 
     def test_candidate_filter_supports_price_time_connection_and_search(self):
         rows = [
@@ -176,10 +256,44 @@ class DesktopR2Tests(unittest.TestCase):
         store = _FakeDashboardStore()
         data = load_dashboard_data(store, [route], now=datetime(2026, 9, 14, 18))
         self.assertEqual(data.today_minimum_cny, Decimal("1380"))
+        self.assertEqual(data.today_minimum_leg_id, route.id)
+        self.assertEqual(data.today_minimum_captured_at, datetime(2026, 9, 14, 12))
         self.assertEqual(data.routes[route.id].minimum_total_cny, Decimal("1420"))
         self.assertEqual(data.routes[route.id].change_cny, Decimal("-60"))
+        self.assertTrue(data.routes[route.id].threshold_confirmed)
         self.assertEqual(data.attention_count, 0)
         self.assertEqual(data.latest_run_duration_seconds, 75)
+
+    def test_dashboard_low_price_card_identifies_route_price_and_opens_candidates(self):
+        route = _route("route-1")
+        data = load_dashboard_data(
+            _FakeDashboardStore(),
+            [route],
+            now=datetime(2026, 9, 14, 18),
+        )
+        opened: list[LegConfig] = []
+        page = DashboardPage(
+            lambda: None,
+            lambda: None,
+            lambda: None,
+            lambda: None,
+            opened.append,
+        )
+        page.refresh([route])
+        page.set_data(data)
+
+        labels = {label.text() for label in page.findChildren(QLabel)}
+        self.assertIn("PVG → KUL", labels)
+        self.assertIn("¥1,380", labels)
+        self.assertIn("心理价 ¥1,500 · 低于心理价 ¥120", labels)
+        self.assertIn("低价命中", labels)
+        self.assertIn("PVG → KUL · 09-14 12:00", labels)
+        self.assertEqual(page.findChild(QLabel, "lowPricePill").text(), "低价命中")
+        action = page.findChild(QPushButton, "lowPriceEventAction")
+        self.assertIsNotNone(action)
+        action.click()
+        self.assertEqual([item.id for item in opened], [route.id])
+        page.close()
 
     def test_event_journal_does_not_persist_raw_fatal_error_text(self):
         with TemporaryDirectory() as temp:
@@ -191,6 +305,85 @@ class DesktopR2Tests(unittest.TestCase):
             self.assertEqual(len(events), 1)
             self.assertNotIn("sensitive-marker", events[0]["message"])
             self.assertEqual(events[0]["severity"], "error")
+
+    def test_event_journal_records_expired_route_without_deleting_history(self):
+        with TemporaryDirectory() as temp:
+            store = SQLiteStore(Path(temp) / "monitor.sqlite3")
+            journal = AppEventJournal(store)
+            journal.initialize()
+            expired = replace(_route("expired-route"), departure_date=date(2026, 9, 20))
+
+            journal.record(RoutesExpired((expired,), datetime(2026, 9, 21, 0, 1), 0))
+
+            events = store.recent_app_events()
+            self.assertEqual(events[0]["event_type"], "routes_expired")
+            self.assertIn("监控已自动暂停", events[0]["message"])
+            self.assertEqual(events[0]["leg_id"], expired.id)
+
+    def test_low_price_events_include_route_and_price_and_suppress_recent_duplicates(self):
+        with TemporaryDirectory() as temp:
+            store = SQLiteStore(Path(temp) / "monitor.sqlite3")
+            journal = AppEventJournal(store)
+            journal.initialize()
+            route = _route("route-1")
+            first_at = datetime(2026, 9, 14, 12)
+
+            first = _confirmed_report(route, "run-1", Decimal("1380"), first_at)
+            journal.record(CycleFinished(first, "first.xlsx", 1))
+
+            low_events = [
+                event for event in store.recent_app_events()
+                if event["event_type"] == "low_price_confirmed"
+            ]
+            self.assertEqual(len(low_events), 1)
+            self.assertEqual(low_events[0]["leg_id"], route.id)
+            self.assertIn("PVG → KUL", low_events[0]["message"])
+            self.assertIn("¥1,380", low_events[0]["message"])
+            self.assertEqual(low_events[0]["details"]["threshold_price_cny"], "1500")
+            self.assertEqual(len(journal.low_price_alert_details("run-1")), 1)
+
+            duplicate = _confirmed_report(
+                route,
+                "run-2",
+                Decimal("1380"),
+                first_at.replace(hour=13),
+            )
+            journal.record(CycleFinished(duplicate, "duplicate.xlsx", 1))
+            low_events = [
+                event for event in store.recent_app_events()
+                if event["event_type"] == "low_price_confirmed"
+            ]
+            self.assertEqual(len(low_events), 1)
+            self.assertEqual(journal.low_price_alert_details("run-2"), ())
+
+            lower = _confirmed_report(
+                route,
+                "run-3",
+                Decimal("1320"),
+                first_at.replace(hour=14),
+            )
+            journal.record(CycleFinished(lower, "lower.xlsx", 1))
+            low_events = [
+                event for event in store.recent_app_events()
+                if event["event_type"] == "low_price_confirmed"
+            ]
+            self.assertEqual(len(low_events), 2)
+            self.assertEqual(low_events[0]["details"]["savings_cny"], "180")
+            self.assertEqual(len(journal.low_price_alert_details("run-3")), 1)
+
+            aged = _confirmed_report(
+                route,
+                "run-4",
+                Decimal("1380"),
+                datetime(2026, 9, 15, 15),
+            )
+            journal.record(CycleFinished(aged, "aged.xlsx", 1))
+            low_events = [
+                event for event in store.recent_app_events()
+                if event["event_type"] == "low_price_confirmed"
+            ]
+            self.assertEqual(len(low_events), 3)
+            self.assertEqual(len(journal.low_price_alert_details("run-4")), 1)
 
     def test_route_wizard_saves_period_passengers_cabin_and_paused_choice(self):
         with TemporaryDirectory() as temp:
@@ -240,12 +433,23 @@ class _FakeDashboardStore:
             "minimum_total_price_cny": "1420",
             "previous_min_total_cny": "1480",
             "captured_at": "2026-09-14T17:30:00",
+            "threshold_confirmed": 1,
         }]
 
     def history(self, *, since):
         return [
-            {"leg_id": "route-1", "status": "success", "minimum_total_price_cny": "1380"},
-            {"leg_id": "route-1", "status": "success", "minimum_total_price_cny": "1420"},
+            {
+                "leg_id": "route-1",
+                "status": "success",
+                "minimum_total_price_cny": "1380",
+                "captured_at": "2026-09-14T12:00:00",
+            },
+            {
+                "leg_id": "route-1",
+                "status": "success",
+                "minimum_total_price_cny": "1420",
+                "captured_at": "2026-09-14T17:30:00",
+            },
         ]
 
     def latest_successful_run(self):
@@ -258,7 +462,20 @@ class _FakeDashboardStore:
         }
 
     def recent_app_events(self, *, limit):
-        return [{"occurred_at": "2026-09-14T17:31:15", "message": "本轮查询完成"}]
+        return [{
+            "occurred_at": "2026-09-14T17:31:15",
+            "event_type": "low_price_confirmed",
+            "severity": "notice",
+            "leg_id": "route-1",
+            "message": "PVG → KUL 命中心理价：含税 ¥1,380，低于心理价 ¥120",
+            "details": {
+                "route_code": "PVG → KUL",
+                "route_name": "上海浦东 → 吉隆坡",
+                "actual_price_cny": "1380",
+                "threshold_price_cny": "1500",
+                "savings_cny": "120",
+            },
+        }]
 
 
 def _route(identifier: str) -> LegConfig:
@@ -277,6 +494,30 @@ def _route(identifier: str) -> LegConfig:
         cabin_class="economy",
         origin_name_zh="上海浦东",
         destination_name_zh="吉隆坡",
+    )
+
+
+def _confirmed_report(
+    route: LegConfig,
+    run_id: str,
+    total: Decimal,
+    captured_at: datetime,
+) -> RunReport:
+    flight = _flight(f"{run_id}-flight", "MU100", total, captured_at)
+    result = LegResult(
+        route,
+        LegStatus.SUCCESS,
+        captured_at,
+        flights=[flight],
+        completed_response=True,
+    )
+    return RunReport(
+        run_id,
+        captured_at,
+        captured_at,
+        RunStatus.SUCCESS,
+        [result],
+        {route.id},
     )
 
 

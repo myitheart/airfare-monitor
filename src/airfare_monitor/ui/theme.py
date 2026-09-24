@@ -42,22 +42,22 @@ class AviationPageStack(QStackedWidget):
         if not self._scaled.isNull():
             x = (self.width() - self._scaled.width()) // 2
             y = (self.height() - self._scaled.height()) // 2
-            painter.setOpacity(0.72)
+            painter.setOpacity(0.45)
             painter.drawPixmap(x, y, self._scaled)
-        # A shared brand line belongs to the background rather than any one
-        # page, so it remains present while navigating between all main views.
-        painter.setOpacity(0.82)
-        painter.setPen(QColor("#426a9f"))
-        motto_font = QFont("KaiTi", 12)
-        motto_font.setFamilies(["STXingkai", "KaiTi", "Microsoft YaHei UI"])
+        # Bottom watermark — stays clear of the page header and action cluster.
+        painter.setOpacity(0.22)
+        painter.setPen(QColor("#7a8faa"))
+        motto_font = QFont("Xingkai SC", 11)
+        motto_font.setFamilies(["Xingkai SC", "Kaiti SC", "Kaiti TC", "STKaiti", "PingFang SC"])
         motto_font.setItalic(True)
         painter.setFont(motto_font)
-        motto_width = 260
+        motto_width = 240
+        motto_height = 48
         painter.drawText(
             (self.width() - motto_width) // 2,
-            17,
+            max(12, self.height() - motto_height - 36),
             motto_width,
-            54,
+            motto_height,
             Qt.AlignmentFlag.AlignCenter,
             "探索世界\n从一张好机票开始",
         )

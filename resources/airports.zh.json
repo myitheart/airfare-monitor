@@ -2,66 +2,1383 @@
   "catalog_version": 1,
   "updated_at": "2026-09-09",
   "airports": [
-    {"airport_iata":"PEK","display_name_zh":"北京首都","city_name_zh":"北京","airport_name_zh":"北京首都国际机场","display_name_en":"Beijing Capital International Airport","country_code":"CN","aliases":["北京","首都","beijing","pek","bj"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"PKX","display_name_zh":"北京大兴","city_name_zh":"北京","airport_name_zh":"北京大兴国际机场","display_name_en":"Beijing Daxing International Airport","country_code":"CN","aliases":["北京","大兴","beijing","pkx","bj"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SHA","display_name_zh":"上海虹桥","city_name_zh":"上海","airport_name_zh":"上海虹桥国际机场","display_name_en":"Shanghai Hongqiao International Airport","country_code":"CN","aliases":["上海","虹桥","shanghai","hongqiao","sha","sh"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"PVG","display_name_zh":"上海浦东","city_name_zh":"上海","airport_name_zh":"上海浦东国际机场","display_name_en":"Shanghai Pudong International Airport","country_code":"CN","aliases":["上海","浦东","shanghai","pudong","pvg","sh"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"CAN","display_name_zh":"广州白云","city_name_zh":"广州","airport_name_zh":"广州白云国际机场","display_name_en":"Guangzhou Baiyun International Airport","country_code":"CN","aliases":["广州","白云","guangzhou","baiyun","can","gz"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SZX","display_name_zh":"深圳宝安","city_name_zh":"深圳","airport_name_zh":"深圳宝安国际机场","display_name_en":"Shenzhen Bao'an International Airport","country_code":"CN","aliases":["深圳","宝安","shenzhen","baoan","szx","sz"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"CTU","display_name_zh":"成都双流","city_name_zh":"成都","airport_name_zh":"成都双流国际机场","display_name_en":"Chengdu Shuangliu International Airport","country_code":"CN","aliases":["成都","双流","chengdu","shuangliu","ctu","cd"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"TFU","display_name_zh":"成都天府","city_name_zh":"成都","airport_name_zh":"成都天府国际机场","display_name_en":"Chengdu Tianfu Airport","country_code":"CN","aliases":["成都","天府","chengdu","tianfu","tfu","cd"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"CKG","display_name_zh":"重庆江北","city_name_zh":"重庆","airport_name_zh":"重庆江北国际机场","display_name_en":"Chongqing Jiangbei International Airport","country_code":"CN","aliases":["重庆","江北","chongqing","jiangbei","ckg","cq"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"HGH","display_name_zh":"杭州萧山","city_name_zh":"杭州","airport_name_zh":"杭州萧山国际机场","display_name_en":"Hangzhou Xiaoshan International Airport","country_code":"CN","aliases":["杭州","萧山","hangzhou","xiaoshan","hgh","hz"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"NKG","display_name_zh":"南京禄口","city_name_zh":"南京","airport_name_zh":"南京禄口国际机场","display_name_en":"Nanjing Lukou International Airport","country_code":"CN","aliases":["南京","禄口","nanjing","lukou","nkg","nj"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"WUH","display_name_zh":"武汉天河","city_name_zh":"武汉","airport_name_zh":"武汉天河国际机场","display_name_en":"Wuhan Tianhe International Airport","country_code":"CN","aliases":["武汉","天河","wuhan","tianhe","wuh","wh"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"XIY","display_name_zh":"西安咸阳","city_name_zh":"西安","airport_name_zh":"西安咸阳国际机场","display_name_en":"Xi'an Xianyang International Airport","country_code":"CN","aliases":["西安","咸阳","xian","xianyang","xiy","xa"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"CSX","display_name_zh":"长沙黄花","city_name_zh":"长沙","airport_name_zh":"长沙黄花国际机场","display_name_en":"Changsha Huanghua International Airport","country_code":"CN","aliases":["长沙","黄花","changsha","huanghua","csx","cs"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"CGO","display_name_zh":"郑州新郑","city_name_zh":"郑州","airport_name_zh":"郑州新郑国际机场","display_name_en":"Zhengzhou Xinzheng International Airport","country_code":"CN","aliases":["郑州","新郑","zhengzhou","xinzheng","cgo","zz"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"KMG","display_name_zh":"昆明长水","city_name_zh":"昆明","airport_name_zh":"昆明长水国际机场","display_name_en":"Kunming Changshui International Airport","country_code":"CN","aliases":["昆明","长水","kunming","changshui","kmg","km"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"XMN","display_name_zh":"厦门高崎","city_name_zh":"厦门","airport_name_zh":"厦门高崎国际机场","display_name_en":"Xiamen Gaoqi International Airport","country_code":"CN","aliases":["厦门","高崎","xiamen","gaoqi","xmn","xm"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"FOC","display_name_zh":"福州长乐","city_name_zh":"福州","airport_name_zh":"福州长乐国际机场","display_name_en":"Fuzhou Changle International Airport","country_code":"CN","aliases":["福州","长乐","fuzhou","changle","foc","fz"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"TAO","display_name_zh":"青岛胶东","city_name_zh":"青岛","airport_name_zh":"青岛胶东国际机场","display_name_en":"Qingdao Jiaodong International Airport","country_code":"CN","aliases":["青岛","胶东","qingdao","jiaodong","tao","qd"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"TSN","display_name_zh":"天津滨海","city_name_zh":"天津","airport_name_zh":"天津滨海国际机场","display_name_en":"Tianjin Binhai International Airport","country_code":"CN","aliases":["天津","滨海","tianjin","binhai","tsn","tj"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"DLC","display_name_zh":"大连周水子","city_name_zh":"大连","airport_name_zh":"大连周水子国际机场","display_name_en":"Dalian Zhoushuizi International Airport","country_code":"CN","aliases":["大连","周水子","dalian","zhoushuizi","dlc","dl"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SHE","display_name_zh":"沈阳桃仙","city_name_zh":"沈阳","airport_name_zh":"沈阳桃仙国际机场","display_name_en":"Shenyang Taoxian International Airport","country_code":"CN","aliases":["沈阳","桃仙","shenyang","taoxian","she","sy"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"HRB","display_name_zh":"哈尔滨太平","city_name_zh":"哈尔滨","airport_name_zh":"哈尔滨太平国际机场","display_name_en":"Harbin Taiping International Airport","country_code":"CN","aliases":["哈尔滨","太平","harbin","taiping","hrb","heb"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SYX","display_name_zh":"三亚凤凰","city_name_zh":"三亚","airport_name_zh":"三亚凤凰国际机场","display_name_en":"Sanya Phoenix International Airport","country_code":"CN","aliases":["三亚","凤凰","sanya","phoenix","syx","sy"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"HAK","display_name_zh":"海口美兰","city_name_zh":"海口","airport_name_zh":"海口美兰国际机场","display_name_en":"Haikou Meilan International Airport","country_code":"CN","aliases":["海口","美兰","haikou","meilan","hak","hk"],"supported_sources":["tongcheng","qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"HKG","display_name_zh":"香港","city_name_zh":"香港","airport_name_zh":"香港国际机场","display_name_en":"Hong Kong International Airport","country_code":"HK","aliases":["香港","hongkong","hkg","hk"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"MFM","display_name_zh":"澳门","city_name_zh":"澳门","airport_name_zh":"澳门国际机场","display_name_en":"Macau International Airport","country_code":"MO","aliases":["澳门","macau","mfm"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"TPE","display_name_zh":"台北桃园","city_name_zh":"台北","airport_name_zh":"台湾桃园国际机场","display_name_en":"Taiwan Taoyuan International Airport","country_code":"TW","aliases":["台北","桃园","taipei","taoyuan","tpe"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"TSA","display_name_zh":"台北松山","city_name_zh":"台北","airport_name_zh":"台北松山机场","display_name_en":"Taipei Songshan Airport","country_code":"TW","aliases":["台北","松山","taipei","songshan","tsa"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"KHH","display_name_zh":"高雄","city_name_zh":"高雄","airport_name_zh":"高雄国际机场","display_name_en":"Kaohsiung International Airport","country_code":"TW","aliases":["高雄","kaohsiung","khh"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"HND","display_name_zh":"东京羽田","city_name_zh":"东京","airport_name_zh":"东京羽田机场","display_name_en":"Tokyo Haneda Airport","country_code":"JP","aliases":["东京","羽田","tokyo","haneda","hnd"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"NRT","display_name_zh":"东京成田","city_name_zh":"东京","airport_name_zh":"东京成田国际机场","display_name_en":"Tokyo Narita International Airport","country_code":"JP","aliases":["东京","成田","tokyo","narita","nrt"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"KIX","display_name_zh":"大阪关西","city_name_zh":"大阪","airport_name_zh":"关西国际机场","display_name_en":"Kansai International Airport","country_code":"JP","aliases":["大阪","关西","osaka","kansai","kix"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"ICN","display_name_zh":"首尔仁川","city_name_zh":"首尔","airport_name_zh":"仁川国际机场","display_name_en":"Incheon International Airport","country_code":"KR","aliases":["首尔","仁川","seoul","incheon","icn"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"GMP","display_name_zh":"首尔金浦","city_name_zh":"首尔","airport_name_zh":"金浦国际机场","display_name_en":"Gimpo International Airport","country_code":"KR","aliases":["首尔","金浦","seoul","gimpo","gmp"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SIN","display_name_zh":"新加坡","city_name_zh":"新加坡","airport_name_zh":"新加坡樟宜机场","display_name_en":"Singapore Changi Airport","country_code":"SG","aliases":["新加坡","樟宜","singapore","changi","sin"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"KUL","display_name_zh":"吉隆坡","city_name_zh":"吉隆坡","airport_name_zh":"吉隆坡国际机场","display_name_en":"Kuala Lumpur International Airport","country_code":"MY","aliases":["吉隆坡","kualalumpur","kul"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"BKK","display_name_zh":"曼谷素万那普","city_name_zh":"曼谷","airport_name_zh":"素万那普机场","display_name_en":"Suvarnabhumi Airport","country_code":"TH","aliases":["曼谷","素万那普","bangkok","suvarnabhumi","bkk"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"DMK","display_name_zh":"曼谷廊曼","city_name_zh":"曼谷","airport_name_zh":"廊曼国际机场","display_name_en":"Don Mueang International Airport","country_code":"TH","aliases":["曼谷","廊曼","bangkok","donmueang","dmk"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"HKT","display_name_zh":"普吉","city_name_zh":"普吉","airport_name_zh":"普吉国际机场","display_name_en":"Phuket International Airport","country_code":"TH","aliases":["普吉","phuket","hkt"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"DPS","display_name_zh":"巴厘岛","city_name_zh":"巴厘岛","airport_name_zh":"巴厘岛伍拉·赖国际机场","display_name_en":"Ngurah Rai International Airport","country_code":"ID","aliases":["巴厘岛","bali","dps"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"CGK","display_name_zh":"雅加达","city_name_zh":"雅加达","airport_name_zh":"苏加诺-哈达国际机场","display_name_en":"Soekarno-Hatta International Airport","country_code":"ID","aliases":["雅加达","jakarta","cgk"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"MNL","display_name_zh":"马尼拉","city_name_zh":"马尼拉","airport_name_zh":"尼诺伊·阿基诺国际机场","display_name_en":"Ninoy Aquino International Airport","country_code":"PH","aliases":["马尼拉","manila","mnl"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SGN","display_name_zh":"胡志明市","city_name_zh":"胡志明市","airport_name_zh":"新山一国际机场","display_name_en":"Tan Son Nhat International Airport","country_code":"VN","aliases":["胡志明市","胡志明","hochiminh","saigon","sgn"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"HAN","display_name_zh":"河内","city_name_zh":"河内","airport_name_zh":"内排国际机场","display_name_en":"Noi Bai International Airport","country_code":"VN","aliases":["河内","hanoi","han"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"MLE","display_name_zh":"马累","city_name_zh":"马累","airport_name_zh":"维拉纳国际机场","display_name_en":"Velana International Airport","country_code":"MV","aliases":["马累","马尔代夫","male","maldives","mle"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"DXB","display_name_zh":"迪拜","city_name_zh":"迪拜","airport_name_zh":"迪拜国际机场","display_name_en":"Dubai International Airport","country_code":"AE","aliases":["迪拜","dubai","dxb"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"DOH","display_name_zh":"多哈","city_name_zh":"多哈","airport_name_zh":"哈马德国际机场","display_name_en":"Hamad International Airport","country_code":"QA","aliases":["多哈","doha","doh"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"LHR","display_name_zh":"伦敦希思罗","city_name_zh":"伦敦","airport_name_zh":"伦敦希思罗机场","display_name_en":"London Heathrow Airport","country_code":"GB","aliases":["伦敦","希思罗","london","heathrow","lhr"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"CDG","display_name_zh":"巴黎戴高乐","city_name_zh":"巴黎","airport_name_zh":"巴黎戴高乐机场","display_name_en":"Paris Charles de Gaulle Airport","country_code":"FR","aliases":["巴黎","戴高乐","paris","charlesdegaulle","cdg"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"AMS","display_name_zh":"阿姆斯特丹","city_name_zh":"阿姆斯特丹","airport_name_zh":"史基浦机场","display_name_en":"Amsterdam Airport Schiphol","country_code":"NL","aliases":["阿姆斯特丹","amsterdam","schiphol","ams"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"FRA","display_name_zh":"法兰克福","city_name_zh":"法兰克福","airport_name_zh":"法兰克福机场","display_name_en":"Frankfurt Airport","country_code":"DE","aliases":["法兰克福","frankfurt","fra"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"IST","display_name_zh":"伊斯坦布尔","city_name_zh":"伊斯坦布尔","airport_name_zh":"伊斯坦布尔机场","display_name_en":"Istanbul Airport","country_code":"TR","aliases":["伊斯坦布尔","istanbul","ist"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"JFK","display_name_zh":"纽约肯尼迪","city_name_zh":"纽约","airport_name_zh":"约翰·F·肯尼迪国际机场","display_name_en":"John F Kennedy International Airport","country_code":"US","aliases":["纽约","肯尼迪","newyork","jfk"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"LAX","display_name_zh":"洛杉矶","city_name_zh":"洛杉矶","airport_name_zh":"洛杉矶国际机场","display_name_en":"Los Angeles International Airport","country_code":"US","aliases":["洛杉矶","losangeles","lax"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SFO","display_name_zh":"旧金山","city_name_zh":"旧金山","airport_name_zh":"旧金山国际机场","display_name_en":"San Francisco International Airport","country_code":"US","aliases":["旧金山","sanfrancisco","sfo"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"YVR","display_name_zh":"温哥华","city_name_zh":"温哥华","airport_name_zh":"温哥华国际机场","display_name_en":"Vancouver International Airport","country_code":"CA","aliases":["温哥华","vancouver","yvr"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"YYZ","display_name_zh":"多伦多皮尔逊","city_name_zh":"多伦多","airport_name_zh":"多伦多皮尔逊国际机场","display_name_en":"Toronto Pearson International Airport","country_code":"CA","aliases":["多伦多","皮尔逊","toronto","pearson","yyz"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"SYD","display_name_zh":"悉尼","city_name_zh":"悉尼","airport_name_zh":"悉尼金斯福德·史密斯机场","display_name_en":"Sydney Kingsford Smith International Airport","country_code":"AU","aliases":["悉尼","sydney","syd"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"MEL","display_name_zh":"墨尔本","city_name_zh":"墨尔本","airport_name_zh":"墨尔本机场","display_name_en":"Melbourne Airport","country_code":"AU","aliases":["墨尔本","melbourne","mel"],"supported_sources":["qunar"],"verified_at":null,"enabled":true},
-    {"airport_iata":"AKL","display_name_zh":"奥克兰","city_name_zh":"奥克兰","airport_name_zh":"奥克兰机场","display_name_en":"Auckland Airport","country_code":"NZ","aliases":["奥克兰","auckland","akl"],"supported_sources":["qunar"],"verified_at":null,"enabled":true}
+    {
+      "airport_iata": "PEK",
+      "display_name_zh": "北京首都",
+      "city_name_zh": "北京",
+      "airport_name_zh": "北京首都国际机场",
+      "display_name_en": "Beijing Capital International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "北京",
+        "首都",
+        "beijing",
+        "pek",
+        "bj"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "PKX",
+      "display_name_zh": "北京大兴",
+      "city_name_zh": "北京",
+      "airport_name_zh": "北京大兴国际机场",
+      "display_name_en": "Beijing Daxing International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "北京",
+        "大兴",
+        "beijing",
+        "pkx",
+        "bj"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SHA",
+      "display_name_zh": "上海虹桥",
+      "city_name_zh": "上海",
+      "airport_name_zh": "上海虹桥国际机场",
+      "display_name_en": "Shanghai Hongqiao International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "上海",
+        "虹桥",
+        "shanghai",
+        "hongqiao",
+        "sha",
+        "sh"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "PVG",
+      "display_name_zh": "上海浦东",
+      "city_name_zh": "上海",
+      "airport_name_zh": "上海浦东国际机场",
+      "display_name_en": "Shanghai Pudong International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "上海",
+        "浦东",
+        "shanghai",
+        "pudong",
+        "pvg",
+        "sh"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "CAN",
+      "display_name_zh": "广州白云",
+      "city_name_zh": "广州",
+      "airport_name_zh": "广州白云国际机场",
+      "display_name_en": "Guangzhou Baiyun International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "广州",
+        "白云",
+        "guangzhou",
+        "baiyun",
+        "can",
+        "gz"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SZX",
+      "display_name_zh": "深圳宝安",
+      "city_name_zh": "深圳",
+      "airport_name_zh": "深圳宝安国际机场",
+      "display_name_en": "Shenzhen Bao'an International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "深圳",
+        "宝安",
+        "shenzhen",
+        "baoan",
+        "szx",
+        "sz"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "CTU",
+      "display_name_zh": "成都双流",
+      "city_name_zh": "成都",
+      "airport_name_zh": "成都双流国际机场",
+      "display_name_en": "Chengdu Shuangliu International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "成都",
+        "双流",
+        "chengdu",
+        "shuangliu",
+        "ctu",
+        "cd"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "TFU",
+      "display_name_zh": "成都天府",
+      "city_name_zh": "成都",
+      "airport_name_zh": "成都天府国际机场",
+      "display_name_en": "Chengdu Tianfu Airport",
+      "country_code": "CN",
+      "aliases": [
+        "成都",
+        "天府",
+        "chengdu",
+        "tianfu",
+        "tfu",
+        "cd"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "CKG",
+      "display_name_zh": "重庆江北",
+      "city_name_zh": "重庆",
+      "airport_name_zh": "重庆江北国际机场",
+      "display_name_en": "Chongqing Jiangbei International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "重庆",
+        "江北",
+        "chongqing",
+        "jiangbei",
+        "ckg",
+        "cq"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "HGH",
+      "display_name_zh": "杭州萧山",
+      "city_name_zh": "杭州",
+      "airport_name_zh": "杭州萧山国际机场",
+      "display_name_en": "Hangzhou Xiaoshan International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "杭州",
+        "萧山",
+        "hangzhou",
+        "xiaoshan",
+        "hgh",
+        "hz"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "NKG",
+      "display_name_zh": "南京禄口",
+      "city_name_zh": "南京",
+      "airport_name_zh": "南京禄口国际机场",
+      "display_name_en": "Nanjing Lukou International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "南京",
+        "禄口",
+        "nanjing",
+        "lukou",
+        "nkg",
+        "nj"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "WUH",
+      "display_name_zh": "武汉天河",
+      "city_name_zh": "武汉",
+      "airport_name_zh": "武汉天河国际机场",
+      "display_name_en": "Wuhan Tianhe International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "武汉",
+        "天河",
+        "wuhan",
+        "tianhe",
+        "wuh",
+        "wh"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "XIY",
+      "display_name_zh": "西安咸阳",
+      "city_name_zh": "西安",
+      "airport_name_zh": "西安咸阳国际机场",
+      "display_name_en": "Xi'an Xianyang International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "西安",
+        "咸阳",
+        "xian",
+        "xianyang",
+        "xiy",
+        "xa"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "CSX",
+      "display_name_zh": "长沙黄花",
+      "city_name_zh": "长沙",
+      "airport_name_zh": "长沙黄花国际机场",
+      "display_name_en": "Changsha Huanghua International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "长沙",
+        "黄花",
+        "changsha",
+        "huanghua",
+        "csx",
+        "cs"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "CGO",
+      "display_name_zh": "郑州新郑",
+      "city_name_zh": "郑州",
+      "airport_name_zh": "郑州新郑国际机场",
+      "display_name_en": "Zhengzhou Xinzheng International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "郑州",
+        "新郑",
+        "zhengzhou",
+        "xinzheng",
+        "cgo",
+        "zz"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "KMG",
+      "display_name_zh": "昆明长水",
+      "city_name_zh": "昆明",
+      "airport_name_zh": "昆明长水国际机场",
+      "display_name_en": "Kunming Changshui International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "昆明",
+        "长水",
+        "kunming",
+        "changshui",
+        "kmg",
+        "km"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "XMN",
+      "display_name_zh": "厦门高崎",
+      "city_name_zh": "厦门",
+      "airport_name_zh": "厦门高崎国际机场",
+      "display_name_en": "Xiamen Gaoqi International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "厦门",
+        "高崎",
+        "xiamen",
+        "gaoqi",
+        "xmn",
+        "xm"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "FOC",
+      "display_name_zh": "福州长乐",
+      "city_name_zh": "福州",
+      "airport_name_zh": "福州长乐国际机场",
+      "display_name_en": "Fuzhou Changle International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "福州",
+        "长乐",
+        "fuzhou",
+        "changle",
+        "foc",
+        "fz"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "TAO",
+      "display_name_zh": "青岛胶东",
+      "city_name_zh": "青岛",
+      "airport_name_zh": "青岛胶东国际机场",
+      "display_name_en": "Qingdao Jiaodong International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "青岛",
+        "胶东",
+        "qingdao",
+        "jiaodong",
+        "tao",
+        "qd"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "TSN",
+      "display_name_zh": "天津滨海",
+      "city_name_zh": "天津",
+      "airport_name_zh": "天津滨海国际机场",
+      "display_name_en": "Tianjin Binhai International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "天津",
+        "滨海",
+        "tianjin",
+        "binhai",
+        "tsn",
+        "tj"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "DLC",
+      "display_name_zh": "大连周水子",
+      "city_name_zh": "大连",
+      "airport_name_zh": "大连周水子国际机场",
+      "display_name_en": "Dalian Zhoushuizi International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "大连",
+        "周水子",
+        "dalian",
+        "zhoushuizi",
+        "dlc",
+        "dl"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SHE",
+      "display_name_zh": "沈阳桃仙",
+      "city_name_zh": "沈阳",
+      "airport_name_zh": "沈阳桃仙国际机场",
+      "display_name_en": "Shenyang Taoxian International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "沈阳",
+        "桃仙",
+        "shenyang",
+        "taoxian",
+        "she",
+        "sy"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "HRB",
+      "display_name_zh": "哈尔滨太平",
+      "city_name_zh": "哈尔滨",
+      "airport_name_zh": "哈尔滨太平国际机场",
+      "display_name_en": "Harbin Taiping International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "哈尔滨",
+        "太平",
+        "harbin",
+        "taiping",
+        "hrb",
+        "heb"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SYX",
+      "display_name_zh": "三亚凤凰",
+      "city_name_zh": "三亚",
+      "airport_name_zh": "三亚凤凰国际机场",
+      "display_name_en": "Sanya Phoenix International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "三亚",
+        "凤凰",
+        "sanya",
+        "phoenix",
+        "syx",
+        "sy"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "HAK",
+      "display_name_zh": "海口美兰",
+      "city_name_zh": "海口",
+      "airport_name_zh": "海口美兰国际机场",
+      "display_name_en": "Haikou Meilan International Airport",
+      "country_code": "CN",
+      "aliases": [
+        "海口",
+        "美兰",
+        "haikou",
+        "meilan",
+        "hak",
+        "hk"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "HKG",
+      "display_name_zh": "香港",
+      "city_name_zh": "香港",
+      "airport_name_zh": "香港国际机场",
+      "display_name_en": "Hong Kong International Airport",
+      "country_code": "HK",
+      "aliases": [
+        "香港",
+        "hongkong",
+        "hkg",
+        "hk"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "MFM",
+      "display_name_zh": "澳门",
+      "city_name_zh": "澳门",
+      "airport_name_zh": "澳门国际机场",
+      "display_name_en": "Macau International Airport",
+      "country_code": "MO",
+      "aliases": [
+        "澳门",
+        "macau",
+        "mfm"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "TPE",
+      "display_name_zh": "台北桃园",
+      "city_name_zh": "台北",
+      "airport_name_zh": "台湾桃园国际机场",
+      "display_name_en": "Taiwan Taoyuan International Airport",
+      "country_code": "TW",
+      "aliases": [
+        "台北",
+        "桃园",
+        "taipei",
+        "taoyuan",
+        "tpe"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "TSA",
+      "display_name_zh": "台北松山",
+      "city_name_zh": "台北",
+      "airport_name_zh": "台北松山机场",
+      "display_name_en": "Taipei Songshan Airport",
+      "country_code": "TW",
+      "aliases": [
+        "台北",
+        "松山",
+        "taipei",
+        "songshan",
+        "tsa"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "KHH",
+      "display_name_zh": "高雄",
+      "city_name_zh": "高雄",
+      "airport_name_zh": "高雄国际机场",
+      "display_name_en": "Kaohsiung International Airport",
+      "country_code": "TW",
+      "aliases": [
+        "高雄",
+        "kaohsiung",
+        "khh"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "HND",
+      "display_name_zh": "东京羽田",
+      "city_name_zh": "东京",
+      "airport_name_zh": "东京羽田机场",
+      "display_name_en": "Tokyo Haneda Airport",
+      "country_code": "JP",
+      "aliases": [
+        "东京",
+        "羽田",
+        "tokyo",
+        "haneda",
+        "hnd"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "NRT",
+      "display_name_zh": "东京成田",
+      "city_name_zh": "东京",
+      "airport_name_zh": "东京成田国际机场",
+      "display_name_en": "Tokyo Narita International Airport",
+      "country_code": "JP",
+      "aliases": [
+        "东京",
+        "成田",
+        "tokyo",
+        "narita",
+        "nrt"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "KIX",
+      "display_name_zh": "大阪关西",
+      "city_name_zh": "大阪",
+      "airport_name_zh": "关西国际机场",
+      "display_name_en": "Kansai International Airport",
+      "country_code": "JP",
+      "aliases": [
+        "大阪",
+        "关西",
+        "osaka",
+        "kansai",
+        "kix"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "ICN",
+      "display_name_zh": "首尔仁川",
+      "city_name_zh": "首尔",
+      "airport_name_zh": "仁川国际机场",
+      "display_name_en": "Incheon International Airport",
+      "country_code": "KR",
+      "aliases": [
+        "首尔",
+        "仁川",
+        "seoul",
+        "incheon",
+        "icn"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "GMP",
+      "display_name_zh": "首尔金浦",
+      "city_name_zh": "首尔",
+      "airport_name_zh": "金浦国际机场",
+      "display_name_en": "Gimpo International Airport",
+      "country_code": "KR",
+      "aliases": [
+        "首尔",
+        "金浦",
+        "seoul",
+        "gimpo",
+        "gmp"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SIN",
+      "display_name_zh": "新加坡",
+      "city_name_zh": "新加坡",
+      "airport_name_zh": "新加坡樟宜机场",
+      "display_name_en": "Singapore Changi Airport",
+      "country_code": "SG",
+      "aliases": [
+        "新加坡",
+        "樟宜",
+        "singapore",
+        "changi",
+        "sin"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "KUL",
+      "display_name_zh": "吉隆坡",
+      "city_name_zh": "吉隆坡",
+      "airport_name_zh": "吉隆坡国际机场",
+      "display_name_en": "Kuala Lumpur International Airport",
+      "country_code": "MY",
+      "aliases": [
+        "吉隆坡",
+        "kualalumpur",
+        "kul"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "BKK",
+      "display_name_zh": "曼谷素万那普",
+      "city_name_zh": "曼谷",
+      "airport_name_zh": "素万那普机场",
+      "display_name_en": "Suvarnabhumi Airport",
+      "country_code": "TH",
+      "aliases": [
+        "曼谷",
+        "素万那普",
+        "bangkok",
+        "suvarnabhumi",
+        "bkk"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "DMK",
+      "display_name_zh": "曼谷廊曼",
+      "city_name_zh": "曼谷",
+      "airport_name_zh": "廊曼国际机场",
+      "display_name_en": "Don Mueang International Airport",
+      "country_code": "TH",
+      "aliases": [
+        "曼谷",
+        "廊曼",
+        "bangkok",
+        "donmueang",
+        "dmk"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "HKT",
+      "display_name_zh": "普吉",
+      "city_name_zh": "普吉",
+      "airport_name_zh": "普吉国际机场",
+      "display_name_en": "Phuket International Airport",
+      "country_code": "TH",
+      "aliases": [
+        "普吉",
+        "phuket",
+        "hkt"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "DPS",
+      "display_name_zh": "巴厘岛",
+      "city_name_zh": "巴厘岛",
+      "airport_name_zh": "巴厘岛伍拉·赖国际机场",
+      "display_name_en": "Ngurah Rai International Airport",
+      "country_code": "ID",
+      "aliases": [
+        "巴厘岛",
+        "bali",
+        "dps"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "CGK",
+      "display_name_zh": "雅加达",
+      "city_name_zh": "雅加达",
+      "airport_name_zh": "苏加诺-哈达国际机场",
+      "display_name_en": "Soekarno-Hatta International Airport",
+      "country_code": "ID",
+      "aliases": [
+        "雅加达",
+        "jakarta",
+        "cgk"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "MNL",
+      "display_name_zh": "马尼拉",
+      "city_name_zh": "马尼拉",
+      "airport_name_zh": "尼诺伊·阿基诺国际机场",
+      "display_name_en": "Ninoy Aquino International Airport",
+      "country_code": "PH",
+      "aliases": [
+        "马尼拉",
+        "manila",
+        "mnl"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SGN",
+      "display_name_zh": "胡志明市",
+      "city_name_zh": "胡志明市",
+      "airport_name_zh": "新山一国际机场",
+      "display_name_en": "Tan Son Nhat International Airport",
+      "country_code": "VN",
+      "aliases": [
+        "胡志明市",
+        "胡志明",
+        "hochiminh",
+        "saigon",
+        "sgn"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "HAN",
+      "display_name_zh": "河内",
+      "city_name_zh": "河内",
+      "airport_name_zh": "内排国际机场",
+      "display_name_en": "Noi Bai International Airport",
+      "country_code": "VN",
+      "aliases": [
+        "河内",
+        "hanoi",
+        "han"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "MLE",
+      "display_name_zh": "马累",
+      "city_name_zh": "马累",
+      "airport_name_zh": "维拉纳国际机场",
+      "display_name_en": "Velana International Airport",
+      "country_code": "MV",
+      "aliases": [
+        "马累",
+        "马尔代夫",
+        "male",
+        "maldives",
+        "mle"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "DXB",
+      "display_name_zh": "迪拜",
+      "city_name_zh": "迪拜",
+      "airport_name_zh": "迪拜国际机场",
+      "display_name_en": "Dubai International Airport",
+      "country_code": "AE",
+      "aliases": [
+        "迪拜",
+        "dubai",
+        "dxb"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "DOH",
+      "display_name_zh": "多哈",
+      "city_name_zh": "多哈",
+      "airport_name_zh": "哈马德国际机场",
+      "display_name_en": "Hamad International Airport",
+      "country_code": "QA",
+      "aliases": [
+        "多哈",
+        "doha",
+        "doh"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "LHR",
+      "display_name_zh": "伦敦希思罗",
+      "city_name_zh": "伦敦",
+      "airport_name_zh": "伦敦希思罗机场",
+      "display_name_en": "London Heathrow Airport",
+      "country_code": "GB",
+      "aliases": [
+        "伦敦",
+        "希思罗",
+        "london",
+        "heathrow",
+        "lhr"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "CDG",
+      "display_name_zh": "巴黎戴高乐",
+      "city_name_zh": "巴黎",
+      "airport_name_zh": "巴黎戴高乐机场",
+      "display_name_en": "Paris Charles de Gaulle Airport",
+      "country_code": "FR",
+      "aliases": [
+        "巴黎",
+        "戴高乐",
+        "paris",
+        "charlesdegaulle",
+        "cdg"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "AMS",
+      "display_name_zh": "阿姆斯特丹",
+      "city_name_zh": "阿姆斯特丹",
+      "airport_name_zh": "史基浦机场",
+      "display_name_en": "Amsterdam Airport Schiphol",
+      "country_code": "NL",
+      "aliases": [
+        "阿姆斯特丹",
+        "amsterdam",
+        "schiphol",
+        "ams"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "FRA",
+      "display_name_zh": "法兰克福",
+      "city_name_zh": "法兰克福",
+      "airport_name_zh": "法兰克福机场",
+      "display_name_en": "Frankfurt Airport",
+      "country_code": "DE",
+      "aliases": [
+        "法兰克福",
+        "frankfurt",
+        "fra"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "IST",
+      "display_name_zh": "伊斯坦布尔",
+      "city_name_zh": "伊斯坦布尔",
+      "airport_name_zh": "伊斯坦布尔机场",
+      "display_name_en": "Istanbul Airport",
+      "country_code": "TR",
+      "aliases": [
+        "伊斯坦布尔",
+        "istanbul",
+        "ist"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "JFK",
+      "display_name_zh": "纽约肯尼迪",
+      "city_name_zh": "纽约",
+      "airport_name_zh": "约翰·F·肯尼迪国际机场",
+      "display_name_en": "John F Kennedy International Airport",
+      "country_code": "US",
+      "aliases": [
+        "纽约",
+        "肯尼迪",
+        "newyork",
+        "jfk"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "LAX",
+      "display_name_zh": "洛杉矶",
+      "city_name_zh": "洛杉矶",
+      "airport_name_zh": "洛杉矶国际机场",
+      "display_name_en": "Los Angeles International Airport",
+      "country_code": "US",
+      "aliases": [
+        "洛杉矶",
+        "losangeles",
+        "lax"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SFO",
+      "display_name_zh": "旧金山",
+      "city_name_zh": "旧金山",
+      "airport_name_zh": "旧金山国际机场",
+      "display_name_en": "San Francisco International Airport",
+      "country_code": "US",
+      "aliases": [
+        "旧金山",
+        "sanfrancisco",
+        "sfo"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "YVR",
+      "display_name_zh": "温哥华",
+      "city_name_zh": "温哥华",
+      "airport_name_zh": "温哥华国际机场",
+      "display_name_en": "Vancouver International Airport",
+      "country_code": "CA",
+      "aliases": [
+        "温哥华",
+        "vancouver",
+        "yvr"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "YYZ",
+      "display_name_zh": "多伦多皮尔逊",
+      "city_name_zh": "多伦多",
+      "airport_name_zh": "多伦多皮尔逊国际机场",
+      "display_name_en": "Toronto Pearson International Airport",
+      "country_code": "CA",
+      "aliases": [
+        "多伦多",
+        "皮尔逊",
+        "toronto",
+        "pearson",
+        "yyz"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "SYD",
+      "display_name_zh": "悉尼",
+      "city_name_zh": "悉尼",
+      "airport_name_zh": "悉尼金斯福德·史密斯机场",
+      "display_name_en": "Sydney Kingsford Smith International Airport",
+      "country_code": "AU",
+      "aliases": [
+        "悉尼",
+        "sydney",
+        "syd"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "MEL",
+      "display_name_zh": "墨尔本",
+      "city_name_zh": "墨尔本",
+      "airport_name_zh": "墨尔本机场",
+      "display_name_en": "Melbourne Airport",
+      "country_code": "AU",
+      "aliases": [
+        "墨尔本",
+        "melbourne",
+        "mel"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    },
+    {
+      "airport_iata": "AKL",
+      "display_name_zh": "奥克兰",
+      "city_name_zh": "奥克兰",
+      "airport_name_zh": "奥克兰机场",
+      "display_name_en": "Auckland Airport",
+      "country_code": "NZ",
+      "aliases": [
+        "奥克兰",
+        "auckland",
+        "akl"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "verified_at": null,
+      "enabled": true
+    }
+  ],
+  "cities": [
+    {
+      "city_iata": "SHA",
+      "display_name_zh": "上海 (全部机场)",
+      "city_name_zh": "上海",
+      "description_zh": "包含浦东(PVG) / 虹桥(SHA)",
+      "display_name_en": "Shanghai All Airports",
+      "country_code": "CN",
+      "child_airports": [
+        "PVG",
+        "SHA"
+      ],
+      "aliases": [
+        "上海",
+        "全部",
+        "所有",
+        "shanghai",
+        "sha",
+        "all"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "enabled": true
+    },
+    {
+      "city_iata": "BJS",
+      "display_name_zh": "北京 (全部机场)",
+      "city_name_zh": "北京",
+      "description_zh": "包含首都(PEK) / 大兴(PKX)",
+      "display_name_en": "Beijing All Airports",
+      "country_code": "CN",
+      "child_airports": [
+        "PEK",
+        "PKX"
+      ],
+      "aliases": [
+        "北京",
+        "全部",
+        "所有",
+        "beijing",
+        "bjs",
+        "all"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "enabled": true
+    },
+    {
+      "city_iata": "CTU",
+      "display_name_zh": "成都 (全部机场)",
+      "city_name_zh": "成都",
+      "description_zh": "包含天府(TFU) / 双流(CTU)",
+      "display_name_en": "Chengdu All Airports",
+      "country_code": "CN",
+      "child_airports": [
+        "TFU",
+        "CTU"
+      ],
+      "aliases": [
+        "成都",
+        "全部",
+        "所有",
+        "chengdu",
+        "ctu",
+        "all"
+      ],
+      "supported_sources": [
+        "tongcheng",
+        "qunar"
+      ],
+      "enabled": true
+    },
+    {
+      "city_iata": "TYO",
+      "display_name_zh": "东京 (全部机场)",
+      "city_name_zh": "东京",
+      "description_zh": "包含成田(NRT) / 羽田(HND)",
+      "display_name_en": "Tokyo All Airports",
+      "country_code": "JP",
+      "child_airports": [
+        "NRT",
+        "HND"
+      ],
+      "aliases": [
+        "东京",
+        "全部",
+        "所有",
+        "tokyo",
+        "tyo",
+        "all"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "enabled": true
+    },
+    {
+      "city_iata": "SEL",
+      "display_name_zh": "首尔 (全部机场)",
+      "city_name_zh": "首尔",
+      "description_zh": "包含仁川(ICN) / 金浦(GMP)",
+      "display_name_en": "Seoul All Airports",
+      "country_code": "KR",
+      "child_airports": [
+        "ICN",
+        "GMP"
+      ],
+      "aliases": [
+        "首尔",
+        "全部",
+        "所有",
+        "seoul",
+        "sel",
+        "all"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "enabled": true
+    },
+    {
+      "city_iata": "BKK",
+      "display_name_zh": "曼谷 (全部机场)",
+      "city_name_zh": "曼谷",
+      "description_zh": "包含素万那普(BKK) / 廊曼(DMK)",
+      "display_name_en": "Bangkok All Airports",
+      "country_code": "TH",
+      "child_airports": [
+        "BKK",
+        "DMK"
+      ],
+      "aliases": [
+        "曼谷",
+        "全部",
+        "所有",
+        "bangkok",
+        "bkk",
+        "all"
+      ],
+      "supported_sources": [
+        "qunar"
+      ],
+      "enabled": true
+    }
   ]
 }

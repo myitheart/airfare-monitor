@@ -77,6 +77,13 @@ class NextRunScheduled:
 
 
 @dataclass(frozen=True, slots=True)
+class RoutesExpired:
+    legs: tuple[LegConfig, ...]
+    checked_at: datetime
+    remaining_enabled: int
+
+
+@dataclass(frozen=True, slots=True)
 class ManualAttentionRequested:
     leg_id: str
     message: str

@@ -20,13 +20,15 @@ from ..desktop_app.controller import DesktopController
 from ..desktop_app.events import (
     CoordinatorStateChanged, CycleFinished, CycleStarted, FatalError, LegFinished, LegStarted,
     ManualAttentionRequested, NextRunScheduled, MailDeliveryFailed,
-    VerificationBrowserOpened,
+    RoutesExpired, VerificationBrowserOpened,
 )
 from ..desktop_app.preferences import PreferencesManager
 from ..desktop_app.mail_profile import MailProfileRepository
 from ..desktop_app.diagnostics import export_diagnostic_zip
 from ..desktop_app.view_data import load_dashboard_data
+from ..desktop_app.route_repository import is_route_expired
 from ..models import LegConfig
+from ..search_link import search_site_label
 from ..storage import SQLiteStore
 from .dashboard_page import DashboardPage, _icon_label, _plain_icon
 from .flight_results_page import FlightResultsPage
@@ -112,6 +114,7 @@ class MainWindow(QMainWindow):
         on_resume: Callable[[], bool | None] | None = None,
         on_retry_leg: Callable[[str], bool | None] | None = None,
         on_open_verification: Callable[[str], bool | None] | None = None,
+        on_open_search: Callable[[LegConfig], None] | None = None,
         history_store: SQLiteStore | None = None,
         outputs_dir: Path | None = None,
     ):
@@ -136,6 +139,7 @@ class MainWindow(QMainWindow):
         self.on_resume = on_resume
         self.on_retry_leg = on_retry_leg
         self.on_open_verification = on_open_verification
+        self.on_open_search = on_open_search
         self._paused = False
         self._build()
         self.controller.on_routes_changed(self.refresh_routes)
@@ -159,7 +163,9 @@ class MainWindow(QMainWindow):
             open_support=self._open_support if self._support_assets.available else None,
             support_prompt_state=self._support_prompt_state,
         )
-        self.routes_page = RoutesPage(self.controller, self.catalog, open_results=self._open_results)
+        self.routes_page = RoutesPage(
+            self.controller, self.catalog, open_results=self._open_results, on_open_search=self._open_search_link
+        )
         self.history = HistoryPage(
             self.history_store,
             open_latest_report=self.open_latest_report,
@@ -187,6 +193,7 @@ class MainWindow(QMainWindow):
         self.flight_results = FlightResultsPage(
             self.history_store,
             on_back=lambda: self._switch_page(1),
+            on_open_search=self._open_search_link,
         )
         self.system.settings_saved.connect(self.runtime_settings_saved.emit)
         for page in (
@@ -200,6 +207,42 @@ class MainWindow(QMainWindow):
             self.pages.addWidget(page)
         layout.addWidget(self.pages, 1)
         self.setCentralWidget(root)
+        self._configure_status_bar()
+
+    def _configure_status_bar(self) -> None:
+        bar = self.statusBar()
+        bar.setObjectName("appStatusBar")
+        bar.setSizeGripEnabled(False)
+        host = QWidget(objectName="statusHost")
+        row = QHBoxLayout(host)
+        row.setContentsMargins(0, 0, 8, 0)
+        row.setSpacing(6)
+        self._status_dot = QLabel("●", objectName="statusBarDot")
+        self._status_dot.setProperty("tone", "idle")
+        self._status_text = QLabel("就绪", objectName="statusBarText")
+        self._status_meta = QLabel("", objectName="statusBarMeta")
+        row.addWidget(self._status_dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(self._status_text, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(self._status_meta, 1, Qt.AlignmentFlag.AlignVCenter)
+        bar.addWidget(host, 1)
+        self._set_status_message("就绪", "")
+
+    def _set_status_message(self, title: str, detail: str = "") -> None:
+        tone = "idle"
+        if title in {"正在查询", "正在准备"}:
+            tone = "busy"
+        elif title in {"本轮完成", "最近完成"}:
+            tone = "ok"
+        elif title in {"需要人工处理", "等待配置", "已暂停"}:
+            tone = "warn"
+        elif title in {"运行异常"}:
+            tone = "error"
+        self._status_dot.setProperty("tone", tone)
+        self._status_dot.style().unpolish(self._status_dot)
+        self._status_dot.style().polish(self._status_dot)
+        self._status_text.setText(title)
+        self._status_meta.setText(f"·  {detail}" if detail else "")
+        self.statusBar().clearMessage()
 
     def _make_sidebar(self) -> QWidget:
         sidebar = QFrame(objectName="sidebar")
@@ -257,6 +300,10 @@ class MainWindow(QMainWindow):
     def _open_results(self, route: LegConfig) -> None:
         self.flight_results.show_route(route)
         self._switch_page(5)
+
+    def _open_search_link(self, route: LegConfig) -> None:
+        if self.on_open_search is not None:
+            self.on_open_search(route)
 
     def begin_first_route(self) -> None:
         self._switch_page(1)
@@ -330,7 +377,7 @@ class MainWindow(QMainWindow):
         if latest_run:
             finished = str(latest_run["finished_at"]).replace("T", " ")
             self.dashboard.set_runtime("最近完成", f"最近一轮：{finished} · {latest_run['status']}")
-            self.statusBar().showMessage(f"最近一轮：{finished} · {latest_run['status']}")
+            self._set_status_message("最近完成", f"{finished} · {latest_run['status']}")
 
     def handle_monitor_event(self, event: object) -> None:
         if isinstance(event, CoordinatorStateChanged):
@@ -369,7 +416,7 @@ class MainWindow(QMainWindow):
             else:
                 route_status = "查询失败"
             self.routes_page.set_leg_status(event.result.leg.id, route_status)
-            self.statusBar().showMessage(f"已完成 {event.index}/{event.total}：{route_status}")
+            self._set_status_message("正在查询", f"已完成 {event.index}/{event.total}：{route_status}")
         elif isinstance(event, CycleFinished):
             succeeded = sum(result.status.value == "success" for result in event.report.legs)
             total = event.total_legs or len(event.report.legs)
@@ -385,6 +432,12 @@ class MainWindow(QMainWindow):
             due = event.due_at.strftime("%m-%d %H:%M")
             self.dashboard.set_next_run(event.due_at)
             self._set_runtime("等待下轮", f"下次自动查询：{due}")
+        elif isinstance(event, RoutesExpired):
+            self.refresh_routes(self.controller.current_routes())
+            self.refresh_from_history()
+            self.statusBar().showMessage(
+                f"已自动暂停 {len(event.legs)} 条超过出发日期的航程"
+            )
         elif isinstance(event, ManualAttentionRequested):
             self.routes_page.set_leg_status(event.leg_id, "需要人工处理")
             self.system.set_attention(event.leg_id, event.message)
@@ -403,7 +456,7 @@ class MainWindow(QMainWindow):
     def _set_runtime(self, title: str, detail: str) -> None:
         self.dashboard.set_runtime(title, detail)
         self.system.set_runtime(title, detail)
-        self.statusBar().showMessage(f"{title} · {detail}")
+        self._set_status_message(title, detail)
         self.runtime_status_changed.emit(title)
 
     def activate(self) -> None:
@@ -439,11 +492,13 @@ class RoutesPage(QWidget):
         catalog: AirportCatalog,
         *,
         open_results: Callable[[LegConfig], None] | None = None,
+        on_open_search: Callable[[LegConfig], None] | None = None,
     ):
         super().__init__()
         self.controller = controller
         self.catalog = catalog
         self.open_results = open_results
+        self.on_open_search = on_open_search
         self.routes: list[LegConfig] = []
         self._runtime_status: dict[str, str] = {}
         self.cards: list[QFrame] = []
@@ -528,12 +583,20 @@ class RoutesPage(QWidget):
         layout.setSpacing(13)
 
         top = QHBoxLayout()
-        state = QLabel("运行中" if route.enabled else "已暂停")
-        state.setObjectName("activePill" if route.enabled else "pausedPill")
+        expired = is_route_expired(route)
+        state = QLabel("已过期" if expired else ("运行中" if route.enabled else "已暂停"))
+        state.setObjectName("activePill" if route.enabled and not expired else "pausedPill")
         top.addWidget(state)
         top.addStretch()
-        toggle = QPushButton("暂停" if route.enabled else "启用", objectName="routeToggle")
-        toggle.clicked.connect(lambda checked=False, item=route: self._toggle(item))
+        toggle = QPushButton(
+            "编辑日期" if expired else ("暂停" if route.enabled else "启用"),
+            objectName="routeToggle",
+        )
+        if expired:
+            toggle.setToolTip("出发日期已过，请修改为今天或未来日期后再启用")
+            toggle.clicked.connect(lambda checked=False, item=route: self._edit(item))
+        else:
+            toggle.clicked.connect(lambda checked=False, item=route: self._toggle(item))
         top.addWidget(toggle)
         layout.addLayout(top)
 
@@ -576,7 +639,12 @@ class RoutesPage(QWidget):
         _add_detail(details, 1, 1, "心理价位", threshold)
         layout.addWidget(summary)
 
-        latest = self._runtime_status.get(route.id, "等待首次查询" if route.enabled else "监控已暂停")
+        latest = (
+            "出发日期已过，监控已自动暂停"
+            if expired else self._runtime_status.get(
+                route.id, "等待首次查询" if route.enabled else "监控已暂停"
+            )
+        )
         latest_row = QHBoxLayout()
         latest_row.addWidget(QLabel("最近状态  ·", objectName="muted"))
         latest_value = QLabel(latest, objectName="routeLatest")
@@ -589,10 +657,17 @@ class RoutesPage(QWidget):
         edit.clicked.connect(lambda checked=False, item=route: self._edit(item))
         copy = QPushButton("复制", objectName="routeAction")
         copy.clicked.connect(lambda checked=False, item=route: self._copy(item))
+        open_site = QPushButton(f"在{search_site_label(route)}打开", objectName="routeAction")
+        open_site.setToolTip("用默认浏览器打开与监控同口径的来源网站搜索结果页")
+        if self.on_open_search is not None:
+            open_site.clicked.connect(lambda checked=False, item=route: self.on_open_search(item))
+        else:
+            open_site.setEnabled(False)
         delete = QPushButton("删除", objectName="dangerAction")
         delete.clicked.connect(lambda checked=False, item=route: self._delete(item))
         footer.addWidget(edit)
         footer.addWidget(copy)
+        footer.addWidget(open_site)
         footer.addStretch()
         footer.addWidget(delete)
         results = QPushButton("查看候选", objectName="routeResultAction")
@@ -718,7 +793,7 @@ class SystemStatusPage(QWidget):
         layout.addWidget(
             preference_card(
                 "浏览器与自动查询",
-                "设置会保存到当前 Windows 用户目录；浏览器显示方式从下一轮查询开始生效。",
+                "设置会保存到本机用户目录；浏览器显示方式从下一轮查询开始生效。",
                 self.form,
             )
         )
@@ -1007,9 +1082,9 @@ def _stored_result_status(row: dict[str, object]) -> str:
     status = str(row.get("status", ""))
     price = _optional_decimal(row.get("minimum_total_price_cny"))
     if status == "success" and price is not None:
-        return f"最近完成 · {_price_text(price)}"
+        return f"完成 · {_price_text(price)}"
     if status == "success":
-        return "最近完成 · 无符合条件航班"
+        return "完成 · 无符合条件航班"
     if status == "manual_attention":
         return "需要人工处理"
     return "最近查询失败"

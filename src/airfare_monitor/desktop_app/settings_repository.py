@@ -20,6 +20,7 @@ class DesktopSettings:
     show_browser: bool = True
     desktop_notifications: bool = True
     autostart: bool = False
+    launch_to_tray: bool = False
     onboarding_completed: bool = False
     close_to_tray_confirmed: bool = False
 
@@ -57,6 +58,7 @@ class SettingsRepository:
             show_browser=not _boolean(browser.get("headless", False), "browser.headless"),
             desktop_notifications=_boolean(desktop.get("desktop_notifications", True), "desktop_notifications"),
             autostart=_boolean(desktop.get("autostart", False), "autostart"),
+            launch_to_tray=_boolean(desktop.get("launch_to_tray", False), "launch_to_tray"),
             onboarding_completed=_boolean(
                 desktop.get("onboarding_completed", False), "onboarding_completed"
             ),
@@ -83,6 +85,7 @@ class SettingsRepository:
             "browser_path": value.browser_path,
             "desktop_notifications": value.desktop_notifications,
             "autostart": value.autostart,
+            "launch_to_tray": value.launch_to_tray,
             "onboarding_completed": value.onboarding_completed,
             "close_to_tray_confirmed": value.close_to_tray_confirmed,
         }

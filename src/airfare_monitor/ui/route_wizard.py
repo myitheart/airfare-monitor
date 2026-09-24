@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor, QPainter, QPolygon
 from PySide6.QtWidgets import (
     QAbstractSpinBox, QCalendarWidget, QCheckBox, QComboBox, QDateEdit, QDialog,
     QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QPushButton, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
+    QLineEdit, QMessageBox, QPushButton, QScrollArea, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from ..desktop_app.airport_catalog import AirportCatalog, AirportRecord
@@ -268,10 +268,16 @@ class RouteWizard(QDialog):
         fields_layout.addWidget(QLabel("从内置机场目录选择具体机场，来源会自动匹配。", objectName="muted"))
         form = QFormLayout()
         form.setSpacing(12)
+        # 与第 2 步一致：macOS 风格下字段默认不扩展，统一撑满宽度。
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         form.addRow("从哪里出发", self.origin_picker)
-        swap = QPushButton("交换起终点")
+        swap_row = QHBoxLayout()
+        swap_row.addStretch()
+        swap = QPushButton("⇅  交换起终点", objectName="swapRoute")
         swap.clicked.connect(self._swap)
-        form.addRow("", swap)
+        swap_row.addWidget(swap)
+        form.addRow("", _layout_widget(swap_row))
         form.addRow("到哪里", self.destination_picker)
         form.addRow("航程类型", self.trip_type)
         self.domestic_roundtrip_hint = QLabel(objectName="domesticTripHint", wordWrap=True)
@@ -310,9 +316,18 @@ class RouteWizard(QDialog):
         self.preview_source = QLabel("自动匹配查询来源", objectName="sourcePill", wordWrap=True)
         preview_layout.addWidget(self.preview_source)
         preview_layout.addStretch()
-        preview_layout.addWidget(QLabel("地点以真实机场 IATA 代码保存，不会展开为“全部机场”城市集合。", objectName="fieldHint", wordWrap=True))
+        preview_layout.addWidget(QLabel("支持选择全部机场或指定单一机场，按实际起降机场比价与记录。", objectName="fieldHint", wordWrap=True))
         body.addWidget(preview, 2)
-        layout.addLayout(body, 1)
+        # 机场联想列表展开会推高表单；空间不足时整页滚动，
+        # 避免字段被挤压或列表被父容器裁切。
+        body_host = QWidget()
+        body_host.setLayout(body)
+        route_scroll = QScrollArea()
+        route_scroll.setWidgetResizable(True)
+        route_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        route_scroll.setStyleSheet("QScrollArea{background: transparent; border: 0;}")
+        route_scroll.setWidget(body_host)
+        layout.addWidget(route_scroll, 1)
         self.departure_date.dateChanged.connect(self._update_preview)
         self.trip_type.currentIndexChanged.connect(self._update_preview)
         return page
@@ -351,6 +366,10 @@ class RouteWizard(QDialog):
         form = QFormLayout()
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(8)
+        # macOS 风格默认字段不扩展（FieldsStayAtSizeHint），控件会挤在表单中间；
+        # 统一改为撑满，与设计稿一致，也保证各平台观感一致。
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         form.addRow("筛选", self.direct_only)
         self.layover_label = QLabel("最长总中转等待")
         form.addRow(self.layover_label, self.max_layover)
@@ -381,7 +400,14 @@ class RouteWizard(QDialog):
         note = QLabel("ⓘ  价格比较、历史和提醒均使用解析后的 CNY 含税总价。")
         note.setObjectName("infoStrip")
         card_layout.addWidget(note)
-        layout.addWidget(card, 1)
+        # 本页自然高度超过对话框可用高度时（小屏或用户调小窗口），
+        # 必须滚动而不是让 QFormLayout 被压缩成重叠的一团。
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea{background: transparent; border: 0;}")
+        scroll.setWidget(card)
+        layout.addWidget(scroll, 1)
         return page
 
     def _confirm_page(self) -> QWidget:
@@ -403,8 +429,19 @@ class RouteWizard(QDialog):
             self._update_capability()
             self._update_focus_fields(False)
             return
-        self.origin_picker.set_record(self.catalog.by_iata(route.origin_airport_iata))
-        self.destination_picker.set_record(self.catalog.by_iata(route.destination_airport_iata))
+        origin_record = None
+        if route.origin_airports and len(route.origin_airports) > 1:
+            origin_record = self.catalog.by_city(route.origin_airport_iata)
+        if origin_record is None:
+            origin_record = self.catalog.by_iata(route.origin_airport_iata)
+        self.origin_picker.set_record(origin_record)
+
+        dest_record = None
+        if route.destination_airports and len(route.destination_airports) > 1:
+            dest_record = self.catalog.by_city(route.destination_airport_iata)
+        if dest_record is None:
+            dest_record = self.catalog.by_iata(route.destination_airport_iata)
+        self.destination_picker.set_record(dest_record)
         self.trip_type.setCurrentIndex(1 if route.return_date else 0)
         self.departure_date.setDate(_qdate(route.departure_date))
         self.start_time.setTime(_qtime(route.etd_window.start))
@@ -624,6 +661,17 @@ class RouteWizard(QDialog):
         assert origin and destination
         return_date = self.return_date.date().toPython() if self.trip_type.currentIndex() else None
         direct = self.direct_only.isChecked()
+        origin_airports = origin.child_airports if origin.is_city else (origin.airport_iata,)
+        destination_airports = destination.child_airports if destination.is_city else (destination.airport_iata,)
+        # 城市名必须保持纯净（如"北京"）：该名字会拼进同程/去哪儿的
+        # 结果页 URL（from= 参数），带"（全部）"之类后缀会让页面查询失效。
+        # 全城/单机场的区分由机场码（BJS vs PEK）与 child_airports 表达。
+        origin_name = origin.city_name_zh
+        dest_name = destination.city_name_zh
+        # 重点班次的机场过滤字段：选城市聚合时写 None（按时刻在全城航班中匹配），
+        # 写城市码（如 BJS）会导致与真实机场码（PEK）永远匹配不上。
+        preferred_origin_code = None if origin.is_city else origin.airport_iata
+        preferred_destination_code = None if destination.is_city else destination.airport_iata
         preferred: tuple[PreferredSchedule, ...] = ()
         if self.focus_enabled.isChecked():
             preferred = (
@@ -634,10 +682,11 @@ class RouteWizard(QDialog):
                     arrival_day_offset=0,
                     departure_tolerance_minutes=self.focus_tolerance.value(),
                     arrival_tolerance_minutes=self.focus_tolerance.value(),
-                    origin_airport_iata=origin.airport_iata,
-                    destination_airport_iata=destination.airport_iata,
+                    origin_airport_iata=preferred_origin_code,
+                    destination_airport_iata=preferred_destination_code,
                 ),
             )
+
         return LegConfig(
             id=self.route.id if self.route else f"route-{uuid.uuid4().hex[:8]}",
             enabled=self.enabled.isChecked() if force_enabled is None else force_enabled,
@@ -651,8 +700,8 @@ class RouteWizard(QDialog):
             adult_count=self.adult_count.value(),
             child_count=self.child_count.value(),
             cabin_class=str(self.cabin_class.currentData()),
-            origin_name_zh=origin.city_name_zh,
-            destination_name_zh=destination.city_name_zh,
+            origin_name_zh=origin_name,
+            destination_name_zh=dest_name,
             preferred_schedules=preferred,
             market="auto",
             max_layover_minutes=None if direct else self.max_layover.value(),
@@ -660,14 +709,27 @@ class RouteWizard(QDialog):
             return_etd_window=EtdWindow(self.return_start_time.time().toPython(), self.return_end_time.time().toPython()) if return_date else None,
             return_direct_only=direct if return_date else None,
             return_max_layover_minutes=(None if direct else self.max_layover.value()) if return_date else None,
+            origin_airports=origin_airports,
+            destination_airports=destination_airports,
         )
 
 
 def _draft_leg(origin: AirportRecord, destination: AirportRecord) -> LegConfig:
     return LegConfig(
-        id="draft", enabled=False, origin_airport_iata=origin.airport_iata, destination_airport_iata=destination.airport_iata,
-        departure_date=date.today(), etd_window=EtdWindow(time(0, 0), time(23, 59)), direct_only=True,
-        expected_total_price_cny=None, top_n=10, adult_count=1, child_count=0, cabin_class="economy",
+        id="draft",
+        enabled=False,
+        origin_airport_iata=origin.airport_iata,
+        destination_airport_iata=destination.airport_iata,
+        departure_date=date.today(),
+        etd_window=EtdWindow(time(0, 0), time(23, 59)),
+        direct_only=True,
+        expected_total_price_cny=None,
+        top_n=10,
+        adult_count=1,
+        child_count=0,
+        cabin_class="economy",
+        origin_airports=origin.child_airports if origin.is_city else (origin.airport_iata,),
+        destination_airports=destination.child_airports if destination.is_city else (destination.airport_iata,),
     )
 
 

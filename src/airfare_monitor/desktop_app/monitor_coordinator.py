@@ -23,6 +23,7 @@ from ..market import resolve_market
 from ..mail import send_report_with_credentials
 from .credential_store import CredentialStore, CredentialStoreError
 from .mail_profile import MailProfileRepository
+from .route_repository import RouteRepository, is_route_expired
 from .events import (
     CoordinatorSnapshot,
     CoordinatorStateChanged,
@@ -37,6 +38,7 @@ from .events import (
     MonitorCommand,
     MonitorCommandType,
     NextRunScheduled,
+    RoutesExpired,
 )
 
 
@@ -102,6 +104,22 @@ class MonitorCoordinator:
 
     def subscribe(self, listener: Callable[[object], None]) -> None:
         self._listeners.append(listener)
+
+    def reconcile_expired_routes(
+        self, checked_at: datetime | None = None,
+    ) -> tuple[list[LegConfig], tuple[LegConfig, ...]]:
+        """Pause routes whose departure date has passed and announce the change."""
+        observed_at = checked_at or self._now()
+        configured, expired = RouteRepository(self.paths.routes_path).pause_expired(
+            observed_at.date()
+        )
+        if expired:
+            self._emit(RoutesExpired(
+                expired,
+                observed_at,
+                sum(leg.enabled for leg in configured),
+            ))
+        return configured, expired
 
     def snapshot(self) -> CoordinatorSnapshot:
         with self._lock:
@@ -255,7 +273,13 @@ class MonitorCoordinator:
             if leg is None:
                 raise ValueError("受影响航程已不存在")
             settings = load_settings(self.paths.settings_path, project_root=self.paths.user_root)
-            session = QunarBrowserSession(replace(settings.browser, headless=False))
+            # 人工确认浏览器与采集浏览器共用隔离 Profile（在同一 Profile 上完成
+            # 验证码才能真正解除自动化侧的拦截），但使用相邻端口：共用端口时，
+            # 用户正在解验证码的可见窗口会与下一轮无头采集产生 headless 状态
+            # 冲突，触发 DrissionPage 的浏览器强杀/关闭路径。
+            session = QunarBrowserSession(
+                replace(settings.browser, headless=False, local_port=settings.browser.local_port + 1)
+            )
             session.start()
             assert session.tab is not None
             if resolve_market(leg) == "domestic":
@@ -298,16 +322,30 @@ class MonitorCoordinator:
             self._running = True
         started_at = self._now()
         try:
-            configured = load_routes(self.paths.routes_path, allow_empty=True)
+            configured, expired = self.reconcile_expired_routes(started_at)
             enabled = [leg for leg in configured if leg.enabled]
             if leg_id is not None:
                 enabled = [leg for leg in enabled if leg.id == leg_id]
                 if not enabled:
+                    if any(leg.id == leg_id for leg in expired):
+                        with self._lock:
+                            self._next_run_at = None
+                        self._set_state("IDLE", "航程出发日期已过，监控已自动暂停")
+                        return
                     raise ValueError("需要重试的航程不存在或已暂停")
             if not enabled:
                 with self._lock:
                     self._next_run_at = None
-                self._set_state("IDLE", "请先添加并启用至少一条航程")
+                configured_expired = [
+                    leg for leg in configured if is_route_expired(leg, started_at.date())
+                ]
+                if expired:
+                    message = f"已自动暂停 {len(expired)} 条过期航程；请编辑日期后重新启用"
+                elif configured_expired:
+                    message = f"{len(configured_expired)} 条航程已过期；请编辑日期后重新启用"
+                else:
+                    message = "请先添加并启用至少一条航程"
+                self._set_state("IDLE", message)
                 return
 
             settings = load_settings(self.paths.settings_path, project_root=self.paths.user_root)

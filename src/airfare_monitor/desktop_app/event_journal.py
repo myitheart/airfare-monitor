@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
+from threading import Lock
 
+from ..models import LegResult
 from ..storage import SQLiteStore
 from .events import (
     CycleFinished,
@@ -12,6 +15,7 @@ from .events import (
     LegFinished,
     ManualAttentionRequested,
     MailDeliveryFailed,
+    RoutesExpired,
     VerificationBrowserOpened,
 )
 
@@ -21,6 +25,8 @@ class AppEventJournal:
 
     def __init__(self, store: SQLiteStore):
         self.store = store
+        self._alert_lock = Lock()
+        self._low_price_alerts: dict[str, tuple[dict[str, object], ...]] = {}
 
     def initialize(self) -> None:
         self.store.initialize()
@@ -38,15 +44,69 @@ class AppEventJournal:
             leg_id=leg_id,
             occurred_at=occurred_at,
         )
-        if isinstance(event, CycleFinished) and event.report.threshold_confirmed_leg_ids:
-            self.store.record_app_event(
-                event_type="low_price_confirmed",
-                severity="notice",
-                message=(
-                    f"本轮 {len(event.report.threshold_confirmed_leg_ids)} 条航程命中心理价位"
-                ),
-                occurred_at=event.report.finished_at,
+        if isinstance(event, CycleFinished):
+            recorded = tuple(
+                details
+                for result in event.report.confirmed_hits
+                if (details := self._record_low_price(event.report.run_id, result, event.report.finished_at))
+                is not None
             )
+            with self._alert_lock:
+                self._low_price_alerts[event.report.run_id] = recorded
+                while len(self._low_price_alerts) > 32:
+                    self._low_price_alerts.pop(next(iter(self._low_price_alerts)))
+
+    def low_price_alert_details(self, run_id: str) -> tuple[dict[str, object], ...]:
+        """Return only newly noteworthy hits from a completed run."""
+        with self._alert_lock:
+            return self._low_price_alerts.get(run_id, ())
+
+    def _record_low_price(
+        self,
+        run_id: str,
+        result: LegResult,
+        occurred_at: datetime,
+    ) -> dict[str, object] | None:
+        price = result.minimum_total_cny
+        threshold = result.leg.expected_total_price_cny
+        if price is None or threshold is None:
+            return None
+        previous = self.store.latest_app_event("low_price_confirmed", result.leg.id)
+        if not _is_noteworthy_low_price(previous, price, threshold, occurred_at):
+            return None
+
+        arrow = "⇄" if result.leg.is_round_trip else "→"
+        route_code = (
+            f"{result.leg.origin_airport_iata} {arrow} "
+            f"{result.leg.destination_airport_iata}"
+        )
+        route_name = (
+            f"{result.leg.origin_name_zh or result.leg.origin_airport_iata} {arrow} "
+            f"{result.leg.destination_name_zh or result.leg.destination_airport_iata}"
+        )
+        savings = max(Decimal("0"), threshold - price)
+        details: dict[str, object] = {
+            "run_id": run_id,
+            "route_code": route_code,
+            "route_name": route_name,
+            "actual_price_cny": str(price),
+            "threshold_price_cny": str(threshold),
+            "savings_cny": str(savings),
+            "captured_at": result.captured_at.isoformat(timespec="seconds"),
+        }
+        difference = (
+            f"，低于心理价 {_price(savings)}"
+            if savings > 0 else "，已达到心理价"
+        )
+        self.store.record_app_event(
+            event_type="low_price_confirmed",
+            severity="notice",
+            leg_id=result.leg.id,
+            message=f"{route_code} 命中心理价：含税 {_price(price)}{difference}",
+            details=details,
+            occurred_at=occurred_at,
+        )
+        return details
 
     def record_settings_changed(self) -> None:
         self.store.record_app_event(
@@ -106,6 +166,17 @@ def _event_payload(
             None,
             event.report.finished_at,
         )
+    if isinstance(event, RoutesExpired):
+        count = len(event.legs)
+        if count == 1:
+            leg = event.legs[0]
+            route = f"{leg.origin_airport_iata} → {leg.destination_airport_iata}"
+            message = f"{route} 已超过出发日期，监控已自动暂停"
+            leg_id = leg.id
+        else:
+            message = f"{count} 条航程已超过出发日期，监控已自动暂停"
+            leg_id = None
+        return "routes_expired", "notice", message, leg_id, event.checked_at
     if isinstance(event, FatalError):
         # Never persist raw exception text; it can include URLs or browser details.
         return "fatal_error", "error", "监控运行异常，请打开系统状态检查", None, None
@@ -114,3 +185,37 @@ def _event_payload(
     if isinstance(event, VerificationBrowserOpened):
         return "verification_opened", "notice", "已打开独立可见浏览器，等待人工完成页面确认", event.leg_id, None
     return None
+
+
+def _is_noteworthy_low_price(
+    previous: dict[str, object] | None,
+    price: Decimal,
+    threshold: Decimal,
+    occurred_at: datetime,
+) -> bool:
+    if previous is None:
+        return True
+    details = previous.get("details")
+    if not isinstance(details, dict):
+        return True
+    previous_price = _decimal(details.get("actual_price_cny"))
+    previous_threshold = _decimal(details.get("threshold_price_cny"))
+    try:
+        previous_at = datetime.fromisoformat(str(previous.get("occurred_at")))
+    except (TypeError, ValueError):
+        return True
+    if previous_price is None or previous_threshold != threshold:
+        return True
+    age = occurred_at - previous_at
+    return not (timedelta(0) <= age < timedelta(hours=24) and price >= previous_price)
+
+
+def _decimal(value: object) -> Decimal | None:
+    try:
+        return Decimal(str(value)) if value not in (None, "") else None
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _price(value: Decimal) -> str:
+    return f"¥{value:,.0f}"

@@ -346,10 +346,10 @@ class ReportTests(unittest.TestCase):
                 self.assertEqual(summary[1], "往返")
                 self.assertEqual(summary[6].date(), date(2026, 10, 3))
                 values = list(workbook["航程1"].iter_rows(min_row=2, max_row=2, values_only=True))[0]
-                self.assertEqual(values[22], "MU002")
-                self.assertEqual(values[24:26], ("KUL", "PVG"))
-                self.assertEqual(values[34], "9张或以上（平台提示）")
-                self.assertEqual(values[35], "2张（票少）")
+                self.assertEqual(values[23], "MU002")
+                self.assertEqual(values[25:27], ("KUL", "PVG"))
+                self.assertEqual(values[35], "9张或以上（平台提示）")
+                self.assertEqual(values[36], "2张（票少）")
             finally:
                 workbook.close()
 

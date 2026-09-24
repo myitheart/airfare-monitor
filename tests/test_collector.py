@@ -5,9 +5,25 @@ from dataclasses import replace
 from datetime import date, time
 from decimal import Decimal
 
-from airfare_monitor.collector import _candidate_leg, build_roundtrip_search_url
+from airfare_monitor.collector import _candidate_leg, _selected_code, build_roundtrip_search_url
 from airfare_monitor.config import MAX_STORED_CANDIDATES
 from airfare_monitor.models import EtdWindow, LegConfig
+
+
+class SuggestionConfirmationTests(unittest.TestCase):
+    def test_selected_code_extracts_code_from_suggestion_value(self):
+        self.assertEqual(_selected_code("上海(SHA)"), "SHA")
+        self.assertEqual(_selected_code("东京(TYO)"), "TYO")
+        self.assertEqual(_selected_code("伦敦(LON)"), "LON")
+
+    def test_selected_code_matches_configured_airport_code(self):
+        self.assertEqual(_selected_code("吉隆坡(KUL)"), "KUL")
+        self.assertEqual(_selected_code("北京(PEK)"), "PEK")
+
+    def test_selected_code_returns_none_without_code(self):
+        self.assertIsNone(_selected_code("上海"))
+        self.assertIsNone(_selected_code(""))
+        self.assertIsNone(_selected_code(None))
 
 
 class CollectorUrlTests(unittest.TestCase):
